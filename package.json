@@ -1,0 +1,20 @@
+{
+  "name": "Cheema",
+  "version": "1.0.0",
+  "description": "deCheem v3 for serverside use",
+  "main": "index.js",
+  "repository": "https://github.com/gmkung/cheema.git",
+  "author": "Guangmian Kung",
+  "license": "MIT",
+  "private": false,
+  "dependencies": {
+    "express": "^4.18.2",
+    "is-subset": "^0.1.1",
+    "lodash": "^4.17.21",
+    "typescript": "^5.3.3"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.10.4"
+  }
+}
