@@ -8,7 +8,7 @@ const routes_1 = __importDefault(require("./routes/routes"));
 const app = (0, express_1.default)();
 const port = process.env.PORT || 3000;
 app.use(express_1.default.json());
-app.use('/api/your-path', routes_1.default);
+app.use("/", routes_1.default);
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
 });

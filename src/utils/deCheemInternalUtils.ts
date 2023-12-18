@@ -36,6 +36,7 @@ export function createAlwaysAssertions(
 }
 
 export function breakdownBelief(CompoundBelief: Belief): Belief[] {
+
   switch (CompoundBelief.scenario.type) {
     case "MUTUAL_EXCLUSION":
     //fall-through to next case
@@ -44,16 +45,25 @@ export function breakdownBelief(CompoundBelief: Belief): Belief[] {
         CompoundBelief.scenario.type === "MUTUAL_EXCLUSION"
           ? "Never"
           : "Always";
-      return CompoundBelief.scenario.filterPhrases.map((filterPhrase, i) => ({
-        ...CompoundBelief,
-        scenario: {
-          ...CompoundBelief.scenario,
-          filterPhrases: [filterPhrase],
-          modalPhrases: CompoundBelief.scenario.filterPhrases
-            .filter((_, v) => i !== v)
-            .map((fp) => ({ modal: modalType, properties: fp } as ModalPhrase)),
-        },
-      }));
+
+      const result = CompoundBelief.scenario.filterPhrases.map(
+        (filterPhrase, i) => ({
+          ...CompoundBelief,
+
+          scenario: {
+            ...CompoundBelief.scenario,
+            type: "LET",
+            filterPhrases: [filterPhrase],
+            modalPhrases: CompoundBelief.scenario.filterPhrases
+              .filter((_, v) => i !== v)
+              .map(
+                (fp) => ({ modal: modalType, properties: fp } as ModalPhrase)
+              ),
+          },
+        })
+      );
+
+      return result;
     default:
       return [CompoundBelief];
   }
@@ -73,9 +83,9 @@ export function normaliseBeliefSet(beliefSet: BeliefSet): BeliefSet {
     const type: string = currentBelief.scenario.type;
 
     if (type === "LET") {
-        normalisedBeliefSet.beliefs.push(currentBelief);
+      normalisedBeliefSet.beliefs.push(currentBelief);
     } else if (type === "MUTUAL_EXCLUSION" || type === "MUTUAL_INCLUSION") {
-        normalisedBeliefSet.beliefs = normalisedBeliefSet.beliefs.concat(
+      normalisedBeliefSet.beliefs = normalisedBeliefSet.beliefs.concat(
         breakdownBelief(currentBelief)
       );
     }
@@ -121,6 +131,3 @@ export function generateAssertions(beliefSet: BeliefSet): AssertionSet {
 
   return assertionSet;
 }
-
-
-

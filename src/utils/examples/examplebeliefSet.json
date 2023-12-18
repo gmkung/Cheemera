@@ -1,0 +1,39 @@
+{
+  "beliefs": [
+    {
+      "beliefUniqueId": "uuid1",
+      "originatingRuleSystemName": "Payment Services Act",
+      "originatingRuleSystemUuid": "uuid-PSA",
+      "scenario": {
+        "type": "LET",
+        "modalPhrases": [
+          {
+            "modal": "Always",
+            "properties": [
+              {
+                "sentence": "The transaction is not considered a payment service",
+                "valence": true
+              }
+            ]
+          }
+        ],
+        "filterPhrases": [
+          [
+            {
+              "sentence": "A payment transaction is executed on behalf of the payer or the payee",
+              "valence": true
+            },
+            {
+              "sentence": "The executor is a commercial agent authorised to negotiate or conclude the sale or purchase of goods or services",
+              "valence": true
+            }
+          ]
+        ]
+      }
+    }
+  ],
+  "beliefSetName": "New rule system - uw69c3",
+  "beliefSetOwner": "Guangmian",
+  "beliefSetVersion": "2021.1",
+  "blindReferenceExternalIdArray": []
+}
