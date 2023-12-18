@@ -1,32 +1,61 @@
-// types.ts
-
+//1. interfaces for structuring beliefs and assertions
 export interface Property {
-    valence: boolean;
-    sentence: string;
+  valence: boolean;
+  sentence: string;
 }
 
 export interface ModalPhrase {
-    modal: string;
-    properties: Property[];
+  modal: string;
+  properties: Property[];
 }
 
 export interface Scenario {
-    type: string;
-    modalPhrases: ModalPhrase[];
-    filterPhrases: Property[][];
+  // previously a 'Case'
+  type: string;
+  modalPhrases: ModalPhrase[];
+  filterPhrases: Property[][];
 }
 
 export interface Belief {
-    scenario: Scenario;
-    beliefUniqueId: string;
-    originatingRuleSystemName: string;
-    originatingRuleSystemUuid: string;
+  scenario: Scenario;
+  beliefUniqueId: string;
+  originatingRuleSystemName: string;
+  originatingRuleSystemUuid: string;
 }
 
 export interface BeliefSet {
-    beliefs: Belief[];
-    beliefSetName: string;
-    beliefSetOwner: string;
-    beliefSetVersion: string;
-    blindReferenceExternalIdArray: any[]; // Replace 'any' with a more specific type if possible
+  //previously a 'beliefBase'
+  beliefs: Belief[];
+  beliefSetName: string;
+  beliefSetOwner: string;
+  beliefSetVersion: string;
+  blindReferenceExternalIdArray: any[]; // Replace 'any' with a more specific type if possible
+}
+
+export interface Assertion {
+  exclude: boolean;
+  properties: Property[];
+  sourceBeliefId?: string;
+}
+
+export interface AssertionSet {
+  assertions: Assertion[];
+}
+
+
+//Below are explore specific.
+export interface ExploreResult {
+    resultCode: string;
+    resultReason: string;
+    results: {
+        possible: boolean;
+        reasoningSteps: ReasoningStep[];
+        arrayOfSecondaryResidues: string[];
+    };
+}
+
+export interface ReasoningStep {
+    deducedProperty?: Property[];
+    inferenceStepType: string;
+    sourceBeliefId?: string;
 }

@@ -1,8 +1,8 @@
-import express from 'express';
-import { yourControllerFunction } from '../controllers/controller';
+import express from "express";
+import { returnAssertionSet } from "../controllers/beliefController";
 
 const router = express.Router();
 
-router.get('/some-endpoint', yourControllerFunction);
+router.get("/returnAssertionSet", returnAssertionSet);
 
 export default router;
