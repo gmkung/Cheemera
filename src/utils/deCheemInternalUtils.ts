@@ -1,9 +1,9 @@
 import {
-  ReasoningStep,
-  ExploreResult,
+  ScenarioType,
   Belief,
+  ModalType,
   BeliefSet,
-  ModalPhrase,
+  Consequence,
   Property,
   AssertionSet,
   Assertion,
@@ -36,7 +36,6 @@ export function createAlwaysAssertions(
 }
 
 export function breakdownBelief(CompoundBelief: Belief): Belief[] {
-
   switch (CompoundBelief.scenario.type) {
     case "MUTUAL_EXCLUSION":
     //fall-through to next case
@@ -44,25 +43,22 @@ export function breakdownBelief(CompoundBelief: Belief): Belief[] {
       const modalType =
         CompoundBelief.scenario.type === "MUTUAL_EXCLUSION"
           ? "Never"
-          : "Always";
-
-      const result = CompoundBelief.scenario.filterPhrases.map(
-        (filterPhrase, i) => ({
+          : ("Always" as ModalType);
+      const result = CompoundBelief.scenario.antecedents.map(
+        (antecedent, i) => ({
           ...CompoundBelief,
-
           scenario: {
             ...CompoundBelief.scenario,
-            type: "LET",
-            filterPhrases: [filterPhrase],
-            modalPhrases: CompoundBelief.scenario.filterPhrases
+            type: "IF_THEN" as ScenarioType,
+            filterPhrases: [antecedent],
+            modalPhrases: CompoundBelief.scenario.antecedents
               .filter((_, v) => i !== v)
               .map(
-                (fp) => ({ modal: modalType, properties: fp } as ModalPhrase)
+                (fp) => ({ modal: modalType, properties: fp } as Consequence)
               ),
           },
         })
       );
-
       return result;
     default:
       return [CompoundBelief];
@@ -82,7 +78,7 @@ export function normaliseBeliefSet(beliefSet: BeliefSet): BeliefSet {
     const currentBelief: Belief = beliefSet.beliefs[i];
     const type: string = currentBelief.scenario.type;
 
-    if (type === "LET") {
+    if (type === "IF_THEN") {
       normalisedBeliefSet.beliefs.push(currentBelief);
     } else if (type === "MUTUAL_EXCLUSION" || type === "MUTUAL_INCLUSION") {
       normalisedBeliefSet.beliefs = normalisedBeliefSet.beliefs.concat(
@@ -97,15 +93,15 @@ export function generateAssertions(beliefSet: BeliefSet): AssertionSet {
   let assertionSet: AssertionSet = { assertions: [] };
 
   beliefSet.beliefs.forEach((belief: Belief) => {
-    if (belief.scenario.type === "LET") {
-      belief.scenario.filterPhrases.forEach((filterPhrase: Property[]) => {
-        belief.scenario.modalPhrases.forEach((modalPhrase) => {
-          if (modalPhrase.modal === "Always") {
+    if (belief.scenario.type === "IF_THEN") {
+      belief.scenario.antecedents.forEach((antecedent: Property[]) => {
+        belief.scenario.consequences.forEach((consequence) => {
+          if (consequence.modal === "Always") {
             let toExclude = createAlwaysAssertions(
-              filterPhrase,
-              modalPhrase.properties.filter(
+              antecedent,
+              consequence.properties.filter(
                 (obj) =>
-                  !filterPhrase.map((fp) => fp.sentence).includes(obj.sentence)
+                  !antecedent.map((fp) => fp.sentence).includes(obj.sentence)
               )
             );
             toExclude.forEach((item: Property[]) => {
@@ -116,10 +112,10 @@ export function generateAssertions(beliefSet: BeliefSet): AssertionSet {
               };
               assertionSet.assertions.push(assertObj);
             });
-          } else if (modalPhrase.modal === "Never") {
+          } else if (consequence.modal === "Never") {
             let assertObj: Assertion = {
               exclude: true, //Always set to exclude. This line can be removed in the future to speed up the program, as I'm not generating 'possible' cases anymore to save memory.
-              properties: filterPhrase.concat(modalPhrase.properties),
+              properties: antecedent.concat(consequence.properties),
               sourceBeliefId: belief.beliefUniqueId,
             };
             assertionSet.assertions.push(assertObj);

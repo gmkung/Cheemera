@@ -25,7 +25,6 @@ function createAlwaysAssertions(filters, adjectives) {
 }
 exports.createAlwaysAssertions = createAlwaysAssertions;
 function breakdownBelief(CompoundBelief) {
-    console.log(CompoundBelief);
     switch (CompoundBelief.scenario.type) {
         case "MUTUAL_EXCLUSION":
         //fall-through to next case
@@ -36,7 +35,6 @@ function breakdownBelief(CompoundBelief) {
             const result = CompoundBelief.scenario.filterPhrases.map((filterPhrase, i) => (Object.assign(Object.assign({}, CompoundBelief), { scenario: Object.assign(Object.assign({}, CompoundBelief.scenario), { type: "LET", filterPhrases: [filterPhrase], modalPhrases: CompoundBelief.scenario.filterPhrases
                         .filter((_, v) => i !== v)
                         .map((fp) => ({ modal: modalType, properties: fp })) }) })));
-            console.log("BrokenDown", JSON.stringify(result));
             return result;
         default:
             return [CompoundBelief];
@@ -44,7 +42,6 @@ function breakdownBelief(CompoundBelief) {
 }
 exports.breakdownBelief = breakdownBelief;
 function normaliseBeliefSet(beliefSet) {
-    console.log(beliefSet);
     let normalisedBeliefSet = {
         beliefs: [],
         beliefSetName: beliefSet.beliefSetName,
@@ -59,7 +56,6 @@ function normaliseBeliefSet(beliefSet) {
             normalisedBeliefSet.beliefs.push(currentBelief);
         }
         else if (type === "MUTUAL_EXCLUSION" || type === "MUTUAL_INCLUSION") {
-            console.log("SPECIAL");
             normalisedBeliefSet.beliefs = normalisedBeliefSet.beliefs.concat(breakdownBelief(currentBelief));
         }
     }

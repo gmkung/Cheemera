@@ -6,6 +6,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const beliefController_1 = require("../controllers/beliefController");
 const router = express_1.default.Router();
-router.get("/returnAssertionSet", beliefController_1.returnAssertionSet);
-router.get("/exploreBeliefSet", beliefController_1.exploreBeliefSet);
+router.post("/returnAssertionSet", beliefController_1.returnAssertionSet);
+router.post("/exploreBeliefSet", beliefController_1.exploreBeliefSet);
 exports.default = router;
