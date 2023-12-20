@@ -1,0 +1,175 @@
+openapi: 3.0.0
+info:
+  title: Cheemera API
+  version: 1.0.0
+servers:
+  - url: 'https://cheemera-8cd49e85c8f5.herokuapp.com'
+    description: Production server
+paths:
+  /returnAssertionSet:
+    post:
+      summary: Returns an AssertionSet from a given BeliefSet
+      operationId: returnAssertionSet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BeliefSet'
+      responses:
+        '200':
+          description: Successfully returned an AssertionSet
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssertionSet'
+        '500':
+          description: Server error
+
+  /exploreBeliefSet:
+    post:
+      operationId: exploreBeliefSet
+      summary: Explores a BeliefSet and returns exploration results
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                explore:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Property'
+                beliefSet:
+                  $ref: '#/components/schemas/BeliefSet'
+      responses:
+        '200':
+          description: Successfully explored the BeliefSet
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExploreResult'
+        '500':
+          description: Server error
+
+components:
+  schemas:
+    Property:
+      type: object
+      properties:
+        valence:
+          type: boolean
+        sentence:
+          type: string
+
+    Consequence:
+      type: object
+      properties:
+        modal:
+          type: string
+          enum: ["Always", "Never"]
+        properties:
+          type: array
+          items:
+            $ref: '#/components/schemas/Property'
+
+    Scenario:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: ["IF_THEN", "MUTUAL_EXCLUSION", "MUTUAL_INCLUSION"]
+        consequences:
+          type: array
+          items:
+            $ref: '#/components/schemas/Consequence'
+        antecedents:
+          type: array
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/Property'
+
+    Belief:
+      type: object
+      properties:
+        scenario:
+          $ref: '#/components/schemas/Scenario'
+        beliefUniqueId:
+          type: string
+        originatingRuleSystemName:
+          type: string
+        originatingRuleSystemUuid:
+          type: string
+
+    BeliefSet:
+      type: object
+      properties:
+        beliefs:
+          type: array
+          items:
+            $ref: '#/components/schemas/Belief'
+        beliefSetName:
+          type: string
+        beliefSetOwner:
+          type: string
+        beliefSetVersion:
+          type: string
+        blindReferenceExternalIdArray:
+          type: array
+          items:
+            type: string
+
+    Assertion:
+      type: object
+      properties:
+        exclude:
+          type: boolean
+        properties:
+          type: array
+          items:
+            $ref: '#/components/schemas/Property'
+        sourceBeliefId:
+          type: string
+
+    AssertionSet:
+      type: object
+      properties:
+        assertions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Assertion'
+
+    ExploreResult:
+      type: object
+      properties:
+        resultCode:
+          type: string
+        resultReason:
+          type: string
+        results:
+          type: object
+          properties:
+            possible:
+              type: boolean
+            reasoningSteps:
+              type: array
+              items:
+                $ref: '#/components/schemas/ReasoningStep'
+            arrayOfSecondaryResidues:
+              type: array
+              items:
+                type: string
+
+    ReasoningStep:
+      type: object
+      properties:
+        deducedProperty:
+          type: array
+          items:
+            $ref: '#/components/schemas/Property'
+        inferenceStepType:
+          type: string
+        sourceBeliefId:
+          type: string
