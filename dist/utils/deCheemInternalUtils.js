@@ -32,7 +32,7 @@ function breakdownBelief(CompoundBelief) {
             const modalType = CompoundBelief.scenario.type === "MUTUAL_EXCLUSION"
                 ? "Never"
                 : "Always";
-            const result = CompoundBelief.scenario.filterPhrases.map((filterPhrase, i) => (Object.assign(Object.assign({}, CompoundBelief), { scenario: Object.assign(Object.assign({}, CompoundBelief.scenario), { type: "LET", filterPhrases: [filterPhrase], modalPhrases: CompoundBelief.scenario.filterPhrases
+            const result = CompoundBelief.scenario.antecedents.map((antecedent, i) => (Object.assign(Object.assign({}, CompoundBelief), { scenario: Object.assign(Object.assign({}, CompoundBelief.scenario), { type: "IF_THEN", antecedents: [antecedent], consequences: CompoundBelief.scenario.antecedents
                         .filter((_, v) => i !== v)
                         .map((fp) => ({ modal: modalType, properties: fp })) }) })));
             return result;
@@ -52,7 +52,7 @@ function normaliseBeliefSet(beliefSet) {
     for (let i = 0; i < beliefSet.beliefs.length; i++) {
         const currentBelief = beliefSet.beliefs[i];
         const type = currentBelief.scenario.type;
-        if (type === "LET") {
+        if (type === "IF_THEN") {
             normalisedBeliefSet.beliefs.push(currentBelief);
         }
         else if (type === "MUTUAL_EXCLUSION" || type === "MUTUAL_INCLUSION") {
@@ -65,11 +65,11 @@ exports.normaliseBeliefSet = normaliseBeliefSet;
 function generateAssertions(beliefSet) {
     let assertionSet = { assertions: [] };
     beliefSet.beliefs.forEach((belief) => {
-        if (belief.scenario.type === "LET") {
-            belief.scenario.filterPhrases.forEach((filterPhrase) => {
-                belief.scenario.modalPhrases.forEach((modalPhrase) => {
-                    if (modalPhrase.modal === "Always") {
-                        let toExclude = createAlwaysAssertions(filterPhrase, modalPhrase.properties.filter((obj) => !filterPhrase.map((fp) => fp.sentence).includes(obj.sentence)));
+        if (belief.scenario.type === "IF_THEN") {
+            belief.scenario.antecedents.forEach((antecedent) => {
+                belief.scenario.consequences.forEach((consequence) => {
+                    if (consequence.modal === "Always") {
+                        let toExclude = createAlwaysAssertions(antecedent, consequence.properties.filter((obj) => !antecedent.map((fp) => fp.sentence).includes(obj.sentence)));
                         toExclude.forEach((item) => {
                             let assertObj = {
                                 exclude: true, //Always set to exclude. This line can be removed in the future to speed up the program, as I'm not generating 'possible' cases anymore to save memory.
@@ -79,10 +79,10 @@ function generateAssertions(beliefSet) {
                             assertionSet.assertions.push(assertObj);
                         });
                     }
-                    else if (modalPhrase.modal === "Never") {
+                    else if (consequence.modal === "Never") {
                         let assertObj = {
                             exclude: true, //Always set to exclude. This line can be removed in the future to speed up the program, as I'm not generating 'possible' cases anymore to save memory.
-                            properties: filterPhrase.concat(modalPhrase.properties),
+                            properties: antecedent.concat(consequence.properties),
                             sourceBeliefId: belief.beliefUniqueId,
                         };
                         assertionSet.assertions.push(assertObj);

@@ -50,8 +50,8 @@ export function breakdownBelief(CompoundBelief: Belief): Belief[] {
           scenario: {
             ...CompoundBelief.scenario,
             type: "IF_THEN" as ScenarioType,
-            filterPhrases: [antecedent],
-            modalPhrases: CompoundBelief.scenario.antecedents
+            antecedents: [antecedent],
+            consequences: CompoundBelief.scenario.antecedents
               .filter((_, v) => i !== v)
               .map(
                 (fp) => ({ modal: modalType, properties: fp } as Consequence)

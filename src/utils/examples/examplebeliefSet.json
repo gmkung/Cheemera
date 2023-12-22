@@ -6,7 +6,7 @@
       "originatingRuleSystemUuid": "uuid-PSA",
       "scenario": {
         "type": "LET",
-        "modalPhrases": [
+        "consequences": [
           {
             "modal": "Always",
             "properties": [
@@ -17,7 +17,7 @@
             ]
           }
         ],
-        "filterPhrases": [
+        "antecedents": [
           [
             {
               "sentence": "A payment transaction is executed on behalf of the payer or the payee",
