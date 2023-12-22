@@ -1,0 +1,137 @@
+{
+  "beliefSet": {
+    "beliefs": [
+      {
+        "beliefUniqueId": "1",
+        "originatingRuleSystemName": "UserQuery",
+        "originatingRuleSystemUuid": "1",
+        "scenario": {
+          "type": "IF_THEN",
+          "consequences": [
+            {
+              "modal": "Always",
+              "properties": [
+                {
+                  "valence": true,
+                  "sentence": "D is true"
+                },
+                {
+                  "valence": true,
+                  "sentence": "E is true"
+                }
+              ]
+            }
+          ],
+          "antecedents": [
+            [
+              {
+                "valence": true,
+                "sentence": "A is true"
+              },
+              {
+                "valence": true,
+                "sentence": "B is true"
+              }
+            ],
+            [
+              {
+                "valence": true,
+                "sentence": "C is true"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "beliefUniqueId": "2",
+        "originatingRuleSystemName": "UserQuery",
+        "originatingRuleSystemUuid": "2",
+        "scenario": {
+          "type": "MUTUAL_EXCLUSION",
+          "consequences": [
+            {
+              "modal": "Always",
+              "properties": [
+                {
+                  "valence": true,
+                  "sentence": "G is true"
+                }
+              ]
+            },
+            {
+              "modal": "Never",
+              "properties": [
+                {
+                  "valence": true,
+                  "sentence": "H is true"
+                }
+              ]
+            }
+          ],
+          "antecedents": [
+            [
+              {
+                "valence": true,
+                "sentence": "E is true"
+              }
+            ],
+            [
+              {
+                "valence": true,
+                "sentence": "H is true"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "beliefUniqueId": "3",
+        "originatingRuleSystemName": "UserQuery",
+        "originatingRuleSystemUuid": "3",
+        "scenario": {
+          "type": "IF_THEN",
+          "consequences": [
+            {
+              "modal": "Never",
+              "properties": [
+                {
+                  "valence": true,
+                  "sentence": "A is true"
+                },
+                {
+                  "valence": true,
+                  "sentence": "F is true"
+                }
+              ]
+            }
+          ],
+          "antecedents": [
+            [
+              {
+                "valence": true,
+                "sentence": "B is true"
+              },
+              {
+                "valence": true,
+                "sentence": "H is true"
+              }
+            ]
+          ]
+        }
+      }
+    ],
+    "beliefSetName": "UserQueryInference",
+    "beliefSetOwner": "Cheemera",
+    "beliefSetVersion": "1.0"
+  },
+  "explore": [
+    {
+      "valence": true,
+      "sentence": "C is true"
+    },
+    {
+      "valence": true,
+      "sentence": "H is true"
+    }
+  ]
+}
