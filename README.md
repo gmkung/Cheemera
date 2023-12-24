@@ -1,4 +1,5 @@
 The repo of the Cheemera Service, an Express app that serves a Typescript implementation of the deCheem inference engine. 
+The [Cheemera Custom GPT](https://chat.openai.com/g/g-7JIMFzSAI-cheemera) is the best place to explore the capabilities of the deCheem inference engine, as it understands the format of the belief system and transposes your natural language rules, principles and beliefs into the right format for you. 
 
 ## Structure:
 The structure of the various entities in deCheem are defined in `/src/types/interfaces.ts`.
