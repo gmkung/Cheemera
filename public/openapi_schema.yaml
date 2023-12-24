@@ -38,9 +38,7 @@ paths:
               type: object
               properties:
                 explore:
-                  type: array
-                  items:
-                    $ref: '#/components/schemas/Property'
+                  $ref: '#/components/schemas/Explore'
                 beliefSet:
                   $ref: '#/components/schemas/BeliefSet'
       responses:
@@ -173,3 +171,7 @@ components:
           type: string
         sourceBeliefId:
           type: string
+    Explore:
+      type: array
+      items:
+        $ref: '#/components/schemas/Property'
