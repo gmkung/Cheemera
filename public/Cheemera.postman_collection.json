@@ -1,0 +1,62 @@
+{
+	"info": {
+		"_postman_id": "7ab70586-9f85-4293-b982-d51e80592f89",
+		"name": "Cheemera",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "6588268"
+	},
+	"item": [
+		{
+			"name": "Return Assertion Set",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"beliefs\": [\n        {\n            \"beliefUniqueId\": \"uuid1\",\n            \"originatingRuleSystemName\": \"Payment Services Act\",\n            \"originatingRuleSystemUuid\": \"uuid-PSA\",\n            \"scenario\": {\n                \"type\": \"MUTUAL_INCLUSION\",\n                \"modalPhrases\": [],\n                \"filterPhrases\": [\n                    [\n                        {\n                            \"sentence\": \"Pizza is blue\",\n                            \"valence\": true\n                        },\n                        {\n                            \"sentence\": \"Food is precious\",\n                            \"valence\": true\n                        }\n                    ],\n                    [\n                        {\n                            \"sentence\": \"Yoghurt is yellow\",\n                            \"valence\": true\n                        },\n                        {\n                            \"sentence\": \"Hotpot is black\",\n                            \"valence\": true\n                        }\n                    ]\n                ]\n            }\n        },\n        {\n            \"beliefUniqueId\": \"uuid1\",\n            \"originatingRuleSystemName\": \"Payment Services Act\",\n            \"originatingRuleSystemUuid\": \"uuid-PSA\",\n            \"scenario\": {\n                \"type\": \"LET\",\n                \"modalPhrases\": [\n                    {\n                        \"modal\": \"Never\",\n                        \"properties\": [\n                            {\n                                \"sentence\": \"Lol is Green\",\n                                \"valence\": true\n                            },\n                            {\n                                \"sentence\": \"Jokes is Brown\",\n                                \"valence\": true\n                            }\n                        ]\n                    }\n                ],\n                \"filterPhrases\": [\n                    [\n                        {\n                            \"sentence\": \"Popcorn is Green\",\n                            \"valence\": true\n                        },\n                        {\n                            \"sentence\": \"Yert is Brown\",\n                            \"valence\": true\n                        }\n                    ]\n                ]\n            }\n        }\n    ],\n    \"beliefSetName\": \"New rule system - uw69c3\",\n    \"beliefSetOwner\": \"Guangmian\",\n    \"beliefSetVersion\": \"2021.1\",\n    \"blindReferenceExternalIdArray\": []\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://cheemera-8cd49e85c8f5.herokuapp.com/returnAssertionSet",
+					"host": [
+						"https://cheemera-8cd49e85c8f5.herokuapp.com"
+					],
+					"path": [
+						"returnAssertionSet"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Explore Belief Set",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"explore\": [\n    {\n      \"valence\": false,\n      \"sentence\": \"E is true\"\n    },\n    {\n      \"valence\": false,\n      \"sentence\": \"B is true\"\n    },\n    {\n      \"valence\": true,\n      \"sentence\": \"A is true\"\n    }\n  ],\n  \"beliefSet\": {\n    \"beliefs\": [\n      {\n        \"scenario\": {\n          \"type\": \"IF_THEN\",\n          \"consequences\": [\n            {\n              \"modal\": \"Always\",\n              \"properties\": [\n                {\n                  \"valence\": true,\n                  \"sentence\": \"C is true\"\n                },\n                {\n                  \"valence\": true,\n                  \"sentence\": \"D is true\"\n                }\n              ]\n            }\n          ],\n          \"antecedents\": [\n            [\n              {\n                \"valence\": true,\n                \"sentence\": \"A is true\"\n              },\n              {\n                \"valence\": true,\n                \"sentence\": \"B is true\"\n              }\n            ]\n          ]\n        },\n        \"beliefUniqueId\": \"1\",\n        \"originatingRuleSystemName\": \"UserScenario\",\n        \"originatingRuleSystemUuid\": \"abc123\"\n      },\n      {\n        \"scenario\": {\n          \"type\": \"IF_THEN\",\n          \"consequences\": [\n            {\n              \"modal\": \"Always\",\n              \"properties\": [\n                {\n                  \"valence\": true,\n                  \"sentence\": \"E is true\"\n                },\n                {\n                  \"valence\": true,\n                  \"sentence\": \"A is true\"\n                }\n              ]\n            }\n          ],\n          \"antecedents\": [\n            [\n              {\n                \"valence\": true,\n                \"sentence\": \"D is true\"\n              },\n              {\n                \"valence\": false,\n                \"sentence\": \"B is true\"\n              }\n            ]\n          ]\n        },\n        \"beliefUniqueId\": \"2\",\n        \"originatingRuleSystemName\": \"UserScenario\",\n        \"originatingRuleSystemUuid\": \"abc123\"\n      }\n    ],\n    \"beliefSetName\": \"UserProvidedBeliefs\",\n    \"beliefSetOwner\": \"User\",\n    \"beliefSetVersion\": \"1.0\",\n    \"blindReferenceExternalIdArray\": [\n      \"1\",\n      \"2\"\n    ]\n  }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://cheemera-8cd49e85c8f5.herokuapp.com/exploreBeliefSet",
+					"host": [
+						"https://cheemera-8cd49e85c8f5.herokuapp.com"
+					],
+					"path": [
+						"exploreBeliefSet"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
