@@ -1,4 +1,4 @@
-[Cheema.postman_collection.json](https://github.com/gmkung/Cheemera/files/13761530/Cheema.postman_collection.json)Cheemera Service, an Express app that serves a Typescript implementation of the deCheem inference engine. 
+The repo of the Cheemera Service, an Express app that serves a Typescript implementation of the deCheem inference engine. 
 
 ## Structure:
 The structure of the various entities in deCheem are defined in /src/types/interfaces.ts.
