@@ -64,6 +64,7 @@ export function exploreAssertions(
     }
   }
 
+  resultObj.results.arrayOfSecondaryResidues = [...new Set(resultObj.results.arrayOfSecondaryResidues)];
   return resultObj;
 }
 
