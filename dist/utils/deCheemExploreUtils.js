@@ -39,18 +39,12 @@ function exploreAssertions(explore, assertionSet) {
                     assertionSet.assertions = assertionSet.assertions.filter((x) => x !== assertion);
                 }
                 else {
-                    const secondaryResidues = calculateSecondaryResidues(residueObj, discoveries);
-                    const seenSecondaryResidues = new Set(resultObj.results.arrayOfSecondaryResidues);
-                    for (const sentence of secondaryResidues) {
-                        if (!seenSecondaryResidues.has(sentence)) {
-                            resultObj.results.arrayOfSecondaryResidues.push(sentence);
-                            seenSecondaryResidues.add(sentence);
-                        }
-                    }
+                    resultObj.results.arrayOfSecondaryResidues.push(...calculateSecondaryResidues(residueObj, discoveries));
                 }
             }
         }
     }
+    resultObj.results.arrayOfSecondaryResidues = [...new Set(resultObj.results.arrayOfSecondaryResidues)];
     return resultObj;
 }
 exports.exploreAssertions = exploreAssertions;
@@ -66,14 +60,7 @@ function isNewProperty(property, exploreObj) {
     return !exploreObj.some((obj) => obj.sentence === property.sentence);
 }
 function calculateSecondaryResidues(residue, exploreObj) {
-    const exploredSentences = new Set(exploreObj.map((obj) => obj.sentence));
-    const uniqueSecondaryResidues = [];
-    const seen = new Set();
-    for (const { sentence } of residue) {
-        if (!exploredSentences.has(sentence) && !seen.has(sentence)) {
-            uniqueSecondaryResidues.push(sentence);
-            seen.add(sentence);
-        }
-    }
-    return uniqueSecondaryResidues;
+    return residue
+        .map((obj) => obj.sentence)
+        .filter((sentence) => !exploreObj.some((obj) => obj.sentence === sentence));
 }
