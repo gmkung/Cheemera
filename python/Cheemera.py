@@ -135,6 +135,7 @@ def explore_assertions(explore: List[Property], assertion_set: AssertionSet) -> 
                         calculate_secondary_residues(residue_obj, discoveries)
                     )
 
+    result_obj.results['arrayOfSecondaryResidues'] = list(dict.fromkeys(result_obj.results['arrayOfSecondaryResidues']))
     return result_obj
 
 
