@@ -22,7 +22,7 @@ const exploreBeliefSet = (req, res) => {
     try {
         const explore = req.body.explore;
         const beliefSet = req.body.beliefSet;
-        //Normalise to 'LET' scenarios
+        //Normalise to 'IF_THEN' scenarios
         const normalisedBeliefSet = (0, deCheemInternalUtils_1.normaliseBeliefSet)(beliefSet);
         //Create assertions
         const assertionSet = (0, deCheemInternalUtils_1.generateAssertions)(normalisedBeliefSet);

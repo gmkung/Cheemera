@@ -99,15 +99,22 @@ export function generateAssertions(beliefSet: BeliefSet): AssertionSet {
           if (consequence.modal === "Always") {
             let toExclude = createAlwaysAssertions(
               antecedent,
+              // Drop a consequence only when it is an exact tautology of an
+              // antecedent (same sentence AND valence). Matching on sentence
+              // alone would wrongly discard opposite-valence consequences such
+              // as "if S then always not-S", losing a real deduction.
               consequence.properties.filter(
                 (obj) =>
-                  !antecedent.map((fp) => fp.sentence).includes(obj.sentence)
+                  !antecedent.some(
+                    (fp) =>
+                      fp.sentence === obj.sentence && fp.valence === obj.valence
+                  )
               )
             );
             toExclude.forEach((item: Property[]) => {
               let assertObj: Assertion = {
                 exclude: true, //Always set to exclude. This line can be removed in the future to speed up the program, as I'm not generating 'possible' cases anymore to save memory.
-                properties: item,
+                properties: deduplicateProperties(item),
                 sourceBeliefId: belief.beliefUniqueId,
               };
               assertionSet.assertions.push(assertObj);

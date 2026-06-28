@@ -31,7 +31,7 @@ export const exploreBeliefSet = (req: Request, res: Response) => {
     const explore: Property[] = req.body.explore;
 
     const beliefSet: BeliefSet = req.body.beliefSet;
-    //Normalise to 'LET' scenarios
+    //Normalise to 'IF_THEN' scenarios
     const normalisedBeliefSet = normaliseBeliefSet(beliefSet);
     //Create assertions
     const assertionSet: AssertionSet = generateAssertions(normalisedBeliefSet);
