@@ -16,7 +16,8 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/app.js",
-    "dev": "tsc && node dist/app.js"
+    "dev": "tsc && node dist/app.js",
+    "test": "tsc && node test/engine.test.js && node test/fuzz.js"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
