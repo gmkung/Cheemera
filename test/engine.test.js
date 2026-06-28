@@ -141,5 +141,40 @@ const has = (props, s, v) => props.some((p) => p.sentence === s && p.valence ===
   check("10: keeps original A", has(res.discoveries, "A", true));
 }
 
+// 11. Case-split "Z either way": (A -> Z) and (not-A -> Z) entail Z
+{
+  const beliefs = [
+    ifThen("r1", [P("A")], [P("Z")]),
+    ifThen("r2", [P("A", false)], [P("Z")]),
+  ];
+  const a = generateAssertions(normaliseBeliefSet(bs(beliefs)));
+  const noSplit = exploreAssertions([], a, 0);
+  const withSplit = exploreAssertions([], a, 1);
+  check("11: depth 0 does NOT deduce Z", !has(deduced(noSplit), "Z", true));
+  check("11: depth 1 deduces Z", has(deduced(withSplit), "Z", true), deduced(withSplit));
+  check("11: Z step marked CaseSplit", withSplit.results.reasoningSteps.some((s) => s.inferenceStepType === "CaseSplit" && (s.deducedProperty || []).some((p) => p.sentence === "Z")));
+  check("11: still possible", withSplit.results.possible === true);
+}
+
+// 12. Failed-literal: (A -> C) and (A -> not-C) make A impossible => deduce not-A
+{
+  const beliefs = [
+    ifThen("r1", [P("A")], [P("C")]),
+    ifThen("r2", [P("A")], [P("C", false)]),
+  ];
+  const a = generateAssertions(normaliseBeliefSet(bs(beliefs)));
+  const r = exploreAssertions([], a, 1);
+  check("12: deduces not-A", has(deduced(r), "A", false), deduced(r));
+}
+
+// 13. maxDepth 0 path is identical to the default (no-arg) call
+{
+  const beliefs = [ifThen("r1", [P("A")], [P("B")]), ifThen("r2", [P("A", false)], [P("Z")])];
+  const a = generateAssertions(normaliseBeliefSet(bs(beliefs)));
+  const def = exploreAssertions([P("A")], a);
+  const zero = exploreAssertions([P("A")], a, 0);
+  check("13: depth 0 == default", JSON.stringify(def) === JSON.stringify(zero));
+}
+
 console.log(`engine.test.js: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

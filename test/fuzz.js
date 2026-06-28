@@ -56,6 +56,31 @@ function randBeliefSet() {
   const beliefs = Array.from({ length: 3 + ri(10) }, (_, i) => randBelief("b" + i));
   return { beliefs, beliefSetName: "t", beliefSetOwner: "t", beliefSetVersion: "1", blindReferenceExternalIdArray: [] };
 }
+// Explore with DISTINCT sentences (no self-conflicting literals), so every
+// explore is representable as a partial world and the oracle stays exact.
+function randExplore() {
+  const out = [];
+  for (const s of SENTENCES) if (rnd() < 0.35) out.push({ sentence: s, valence: rnd() < 0.5 });
+  return out;
+}
+
+// Brute-force ground truth over all 2^|SENTENCES| worlds. A world violates an
+// assertion (nogood) when every literal in it matches; a world is consistent
+// when it matches the explore and violates no assertion.
+function oracle(assertions, explore) {
+  const consistent = [];
+  for (let m = 0; m < (1 << SENTENCES.length); m++) {
+    const w = {};
+    SENTENCES.forEach((s, j) => (w[s] = (m & (1 << j)) !== 0));
+    if (!explore.every((p) => w[p.sentence] === p.valence)) continue;
+    const violated = assertions.some((a) => a.properties.every((p) => w[p.sentence] === p.valence));
+    if (!violated) consistent.push(w);
+  }
+  return consistent;
+}
+// A literal deduced by the engine = any deducedProperty across reasoning steps.
+const engineDeduced = (r) => r.results.reasoningSteps.flatMap((s) => s.deducedProperty || []);
+
 function meaningful(r) {
   return JSON.stringify({
     possible: r.results.possible,
@@ -80,7 +105,7 @@ for (let i = 0; i < N; i++) {
     report(i, "generate-threw", e.message);
     continue;
   }
-  const explore = randPropList(0, 3);
+  const explore = randExplore();
 
   // INVARIANT: determinism / purity -- two runs on the same inputs are identical.
   const r1 = exploreAssertions(clone(explore), { assertions: clone(assertions.assertions) });
@@ -96,7 +121,35 @@ for (let i = 0; i < N; i++) {
     report(i, "impossible-without-source", "");
   }
 
-  // Optional differential: meaningful output + secondary SET must match the reference impl.
+  // ---- Case-split soundness vs brute-force oracle (ground truth) ----
+  const consistent = oracle(assertions.assertions, explore);
+  const cs = exploreAssertions(clone(explore), { assertions: clone(assertions.assertions) }, 2);
+
+  // determinism also holds with case-split on
+  const cs2 = exploreAssertions(clone(explore), { assertions: clone(assertions.assertions) }, 2);
+  if (JSON.stringify(cs) !== JSON.stringify(cs2)) report(i, "case-split-non-deterministic", "");
+
+  if (consistent.length > 0) {
+    // SOUND verdict: a model exists, so the engine must NOT declare it impossible.
+    if (cs.results.possible === false) report(i, "UNSOUND-possible", "oracle SAT but engine says impossible");
+    // SOUND deductions: every deduced literal must hold in EVERY consistent world.
+    for (const L of engineDeduced(cs)) {
+      if (!consistent.every((w) => w[L.sentence] === L.valence)) {
+        report(i, "UNSOUND-deduction", `${L.sentence}:${L.valence} not entailed`);
+        break;
+      }
+    }
+  } else {
+    // Oracle UNSAT: engine may detect it (possible:false) or miss it
+    // (incomplete) but must never be unsound; deductions are vacuously fine.
+  }
+
+  // SUPERSET: case-split must not lose any plain-propagation deduction.
+  const plainSet = new Set(engineDeduced(r1).map((p) => p.sentence + ":" + p.valence));
+  const csSet = new Set(engineDeduced(cs).map((p) => p.sentence + ":" + p.valence));
+  for (const lit of plainSet) if (!csSet.has(lit)) { report(i, "case-split-not-superset", lit); break; }
+
+  // Optional differential: meaningful output + secondary SET must match the reference impl (depth 0 path).
   if (diffImpl) {
     const rOld = diffImpl(clone(explore), { assertions: clone(assertions.assertions) });
     if (meaningful(r1) !== meaningful(rOld)) report(i, "DIFF-meaningful", `new=${meaningful(r1)} old=${meaningful(rOld)}`);

@@ -22,12 +22,16 @@ const exploreBeliefSet = (req, res) => {
     try {
         const explore = req.body.explore;
         const beliefSet = req.body.beliefSet;
+        // Optional reasoning-by-cases depth. 0 (default) = plain unit propagation,
+        // preserving the original behaviour. Higher values enable case-split
+        // deductions at the cost of more computation.
+        const maxCaseSplitDepth = Math.max(0, Number(req.body.maxCaseSplitDepth) || 0);
         //Normalise to 'IF_THEN' scenarios
         const normalisedBeliefSet = (0, deCheemInternalUtils_1.normaliseBeliefSet)(beliefSet);
         //Create assertions
         const assertionSet = (0, deCheemInternalUtils_1.generateAssertions)(normalisedBeliefSet);
         //Explore assertions using 'explore'
-        const exploreResults = (0, deCheemExploreUtils_1.exploreAssertions)(explore, assertionSet);
+        const exploreResults = (0, deCheemExploreUtils_1.exploreAssertions)(explore, assertionSet, maxCaseSplitDepth);
         res.json(exploreResults);
     }
     catch (error) {

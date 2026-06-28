@@ -31,6 +31,13 @@ export const exploreBeliefSet = (req: Request, res: Response) => {
     const explore: Property[] = req.body.explore;
 
     const beliefSet: BeliefSet = req.body.beliefSet;
+    // Optional reasoning-by-cases depth. 0 (default) = plain unit propagation,
+    // preserving the original behaviour. Higher values enable case-split
+    // deductions at the cost of more computation.
+    const maxCaseSplitDepth: number = Math.max(
+      0,
+      Number(req.body.maxCaseSplitDepth) || 0
+    );
     //Normalise to 'IF_THEN' scenarios
     const normalisedBeliefSet = normaliseBeliefSet(beliefSet);
     //Create assertions
@@ -38,7 +45,8 @@ export const exploreBeliefSet = (req: Request, res: Response) => {
     //Explore assertions using 'explore'
     const exploreResults: ExploreResult = exploreAssertions(
       explore,
-      assertionSet
+      assertionSet,
+      maxCaseSplitDepth
     );
     res.json(exploreResults);
   } catch (error) {

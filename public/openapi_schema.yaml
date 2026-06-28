@@ -41,6 +41,16 @@ paths:
                   $ref: '#/components/schemas/Explore'
                 beliefSet:
                   $ref: '#/components/schemas/BeliefSet'
+                maxCaseSplitDepth:
+                  type: integer
+                  minimum: 0
+                  default: 0
+                  description: >
+                    Depth of reasoning-by-cases (case-split) analysis. 0 (default)
+                    uses plain unit propagation. Higher values let the engine
+                    deduce properties that hold across every value of undetermined
+                    variables (e.g. "if A then Z" and "if not-A then Z" entails Z),
+                    at increasing computational cost.
       responses:
         '200':
           description: Successfully explored the BeliefSet

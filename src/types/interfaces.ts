@@ -60,4 +60,7 @@ export interface ReasoningStep {
   deducedProperty?: Property[];
   inferenceStepType: string;
   sourceBeliefId?: string;
+  // For "CaseSplit" steps: the sentence whose two truth-values were both
+  // explored to force this deduction (the deduction holds either way).
+  caseSplitOn?: string;
 }
