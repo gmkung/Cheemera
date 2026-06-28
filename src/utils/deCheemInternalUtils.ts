@@ -84,6 +84,13 @@ export function normaliseBeliefSet(beliefSet: BeliefSet): BeliefSet {
       normalisedBeliefSet.beliefs = normalisedBeliefSet.beliefs.concat(
         breakdownBelief(currentBelief)
       );
+    } else {
+      // Fail loudly instead of silently dropping unrecognised scenario types,
+      // which would otherwise yield an empty assertion set and misleading
+      // "everything is possible" results.
+      throw new Error(
+        `Unknown scenario type "${type}" in belief "${currentBelief.beliefUniqueId}"`
+      );
     }
   }
   return normalisedBeliefSet;

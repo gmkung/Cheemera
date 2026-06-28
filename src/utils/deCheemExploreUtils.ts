@@ -8,64 +8,111 @@ import {
 
 import { invertValences } from "./deCheemInternalUtils";
 
+// Result of one propagation run. Kept side-effect free: the caller's `explore`
+// and `assertionSet` are never mutated, so the same inputs can be propagated
+// repeatedly (a prerequisite for case-split style branching).
+export interface PropagateResult {
+  contradiction: boolean;
+  contradictionSourceBeliefId?: string;
+  discoveries: Property[];
+  reasoningSteps: ReasoningStep[];
+  secondaryResidues: string[];
+}
+
+export function propagate(
+  explore: Property[],
+  assertions: Assertion[]
+): PropagateResult {
+  const discoveries: Property[] = [...explore];
+  const reasoningSteps: ReasoningStep[] = [];
+  const secondaryResidues: string[] = [];
+
+  // Local working copy of the still-relevant assertions. We never mutate the
+  // array we iterate; instead each pass rebuilds the list of assertions that
+  // remain active, dropping any that have fired.
+  let active: Assertion[] = [...assertions];
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+    const stillActive: Assertion[] = [];
+
+    for (const assertion of active) {
+      if (isAssertionExcluded(assertion, discoveries)) {
+        // The full forbidden combination is realised: the explore is impossible.
+        return {
+          contradiction: true,
+          contradictionSourceBeliefId: assertion.sourceBeliefId,
+          discoveries,
+          reasoningSteps,
+          secondaryResidues,
+        };
+      }
+
+      const residueObj = calculateResidue(assertion, discoveries);
+
+      if (residueObj.length === 1 && isNewProperty(residueObj[0], discoveries)) {
+        // Unit propagation: every literal but one is satisfied, so the last one
+        // is forced to its opposite valence.
+        const deduced = invertValences(residueObj);
+        reasoningSteps.push({
+          inferenceStepType: "Deductive",
+          deducedProperty: deduced,
+          sourceBeliefId: assertion.sourceBeliefId,
+        });
+        discoveries.push(...deduced);
+        changed = true;
+        // Assertion has fired; drop it by not carrying it into stillActive.
+      } else {
+        secondaryResidues.push(
+          ...calculateSecondaryResidues(residueObj, discoveries)
+        );
+        stillActive.push(assertion);
+      }
+    }
+
+    active = stillActive;
+  }
+
+  return {
+    contradiction: false,
+    discoveries,
+    reasoningSteps,
+    secondaryResidues,
+  };
+}
+
 export function exploreAssertions(
   explore: Property[],
   assertionSet: AssertionSet
 ): ExploreResult {
-  let discoveries = [...explore];
+  const { contradiction, contradictionSourceBeliefId, reasoningSteps, secondaryResidues } =
+    propagate(explore, assertionSet.assertions);
 
-  const resultObj: ExploreResult = {
+  if (contradiction) {
+    return {
+      resultCode: "Success",
+      resultReason: "Successful with no errors found",
+      results: {
+        possible: false,
+        reasoningSteps: [
+          ...reasoningSteps,
+          { inferenceStepType: "Deductive", sourceBeliefId: contradictionSourceBeliefId },
+        ],
+        arrayOfSecondaryResidues: [...new Set(secondaryResidues)],
+      },
+    };
+  }
+
+  return {
     resultCode: "Success",
     resultReason: "Successful with no errors found",
     results: {
       possible: true,
-      reasoningSteps: [],
-      arrayOfSecondaryResidues: [],
+      reasoningSteps,
+      arrayOfSecondaryResidues: [...new Set(secondaryResidues)],
     },
   };
-
-  let turn = 1;
-  let previousmd5 = null;
-
-  while (JSON.stringify(discoveries) !== previousmd5 || turn === 1) {
-    previousmd5 = JSON.stringify(discoveries);
-    turn++;
-
-    for (const assertion of assertionSet.assertions) {
-      const reasoningStep: ReasoningStep = {
-        inferenceStepType: "Deductive",
-      };
-
-      if (isAssertionExcluded(assertion, discoveries)) {
-        reasoningStep.sourceBeliefId = assertion.sourceBeliefId;
-        resultObj.results.reasoningSteps.push(reasoningStep);
-        resultObj.results.possible = false;
-        return resultObj;
-      } else {
-        const residueObj = calculateResidue(assertion, discoveries);
-
-        if (
-          residueObj.length === 1 &&
-          isNewProperty(residueObj[0], discoveries)
-        ) {
-          reasoningStep.deducedProperty = invertValences(residueObj);
-          reasoningStep.sourceBeliefId = assertion.sourceBeliefId;
-          resultObj.results.reasoningSteps.push(reasoningStep);
-          discoveries.push(...invertValences(residueObj));
-          assertionSet.assertions = assertionSet.assertions.filter(
-            (x) => x !== assertion
-          );
-        } else {
-          resultObj.results.arrayOfSecondaryResidues.push(
-            ...calculateSecondaryResidues(residueObj, discoveries)
-          );
-        }
-      }
-    }
-  }
-
-  resultObj.results.arrayOfSecondaryResidues = [...new Set(resultObj.results.arrayOfSecondaryResidues)];
-  return resultObj;
 }
 
 //helper functions below:
