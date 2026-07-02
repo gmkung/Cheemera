@@ -27,6 +27,24 @@ export function propagate(
   const reasoningSteps: ReasoningStep[] = [];
   const secondaryResidues: string[] = [];
 
+  // Premises asserting both valences of the same sentence describe an empty
+  // set of situations: no belief is needed to make this impossible. Reported
+  // as an ordinary contradiction (no sourceBeliefId), not an error.
+  for (const p of discoveries) {
+    if (
+      discoveries.some(
+        (o) => o.sentence === p.sentence && o.valence !== p.valence
+      )
+    ) {
+      return {
+        contradiction: true,
+        discoveries,
+        reasoningSteps,
+        secondaryResidues,
+      };
+    }
+  }
+
   // Local working copy of the still-relevant assertions. We never mutate the
   // array we iterate; instead each pass rebuilds the list of assertions that
   // remain active, dropping any that have fired.
@@ -94,10 +112,14 @@ function formatResult(result: PropagateResult): ExploreResult {
         possible: false,
         reasoningSteps: [
           ...result.reasoningSteps,
-          {
-            inferenceStepType: "Deductive",
-            sourceBeliefId: result.contradictionSourceBeliefId,
-          },
+          // A contradiction without a source belief means the explore's own
+          // premises were mutually exclusive (e.g. A and NOT A supplied).
+          result.contradictionSourceBeliefId !== undefined
+            ? {
+                inferenceStepType: "Deductive",
+                sourceBeliefId: result.contradictionSourceBeliefId,
+              }
+            : { inferenceStepType: "PremiseContradiction" },
         ],
         arrayOfSecondaryResidues: [...new Set(result.secondaryResidues)],
       },
@@ -115,14 +137,32 @@ function formatResult(result: PropagateResult): ExploreResult {
   };
 }
 
+// Case-split explores an exponential branch tree in the worst case. Rather
+// than capping depth, runtime is bounded by a budget of recursive branch
+// visits; when exhausted the engine stops deepening and returns what has been
+// soundly established so far (never wrong, possibly incomplete).
+export const DEFAULT_CASE_SPLIT_BUDGET = 50000;
+
+export interface CaseSplitBudget {
+  used: number;
+  max: number;
+}
+
 export function exploreAssertions(
   explore: Property[],
   assertionSet: AssertionSet,
-  maxCaseSplitDepth: number = 0
+  maxCaseSplitDepth: number = 0,
+  budget: CaseSplitBudget = { used: 0, max: DEFAULT_CASE_SPLIT_BUDGET }
 ): ExploreResult {
   const result =
     maxCaseSplitDepth > 0
-      ? deduceWithCaseSplit(explore, assertionSet.assertions, maxCaseSplitDepth, 0)
+      ? deduceWithCaseSplit(
+          explore,
+          assertionSet.assertions,
+          maxCaseSplitDepth,
+          0,
+          budget
+        )
       : propagate(explore, assertionSet.assertions);
 
   return formatResult(result);
@@ -166,11 +206,14 @@ export function deduceWithCaseSplit(
   explore: Property[],
   assertions: Assertion[],
   maxDepth: number,
-  depth: number = 0
+  depth: number = 0,
+  budget: CaseSplitBudget = { used: 0, max: DEFAULT_CASE_SPLIT_BUDGET }
 ): PropagateResult {
-  // Start from the unit-propagation closure of the current facts.
+  budget.used++;
+  // Start from the unit-propagation closure of the current facts. When the
+  // budget is exhausted, stop deepening: propagation alone is still sound.
   const base = propagate(explore, assertions);
-  if (base.contradiction || depth >= maxDepth) {
+  if (base.contradiction || depth >= maxDepth || budget.used > budget.max) {
     return base;
   }
 
@@ -197,13 +240,15 @@ export function deduceWithCaseSplit(
         [...discoveries, asTrue],
         assertions,
         maxDepth,
-        depth + 1
+        depth + 1,
+        budget
       );
       const branchFalse = deduceWithCaseSplit(
         [...discoveries, asFalse],
         assertions,
         maxDepth,
-        depth + 1
+        depth + 1,
+        budget
       );
 
       // What to add to the current facts as a result of this split.

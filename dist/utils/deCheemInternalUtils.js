@@ -93,15 +93,30 @@ function generateAssertions(beliefSet) {
                     else if (consequence.modal === "Never") {
                         let assertObj = {
                             exclude: true, //Always set to exclude. This line can be removed in the future to speed up the program, as I'm not generating 'possible' cases anymore to save memory.
-                            properties: antecedent.concat(consequence.properties),
+                            properties: deduplicateProperties(antecedent.concat(consequence.properties)),
                             sourceBeliefId: belief.beliefUniqueId,
                         };
                         assertionSet.assertions.push(assertObj);
+                    }
+                    else {
+                        // Fail loudly instead of silently dropping the rule, which would
+                        // make its scenario look permissible.
+                        throw new Error(`Unknown modal "${consequence.modal}" in belief "${belief.beliefUniqueId}"`);
                     }
                 });
             });
         }
     });
+    // An empty assertion would be vacuously matched by every explore, marking
+    // everything impossible. Reachable only via degenerate beliefs (e.g. empty
+    // antecedent group with an empty Never consequence), so treat it as input
+    // corruption rather than a valid nogood.
+    for (const assertion of assertionSet.assertions) {
+        if (assertion.properties.length === 0) {
+            throw new Error(`Belief "${assertion.sourceBeliefId}" compiles to an empty assertion (no properties); ` +
+                `check for empty antecedent and consequence combinations`);
+        }
+    }
     return assertionSet;
 }
 exports.generateAssertions = generateAssertions;

@@ -1,11 +1,24 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deduceWithCaseSplit = exports.exploreAssertions = exports.propagate = void 0;
+exports.deduceWithCaseSplit = exports.exploreAssertions = exports.DEFAULT_CASE_SPLIT_BUDGET = exports.propagate = void 0;
 const deCheemInternalUtils_1 = require("./deCheemInternalUtils");
 function propagate(explore, assertions) {
     const discoveries = [...explore];
     const reasoningSteps = [];
     const secondaryResidues = [];
+    // Premises asserting both valences of the same sentence describe an empty
+    // set of situations: no belief is needed to make this impossible. Reported
+    // as an ordinary contradiction (no sourceBeliefId), not an error.
+    for (const p of discoveries) {
+        if (discoveries.some((o) => o.sentence === p.sentence && o.valence !== p.valence)) {
+            return {
+                contradiction: true,
+                discoveries,
+                reasoningSteps,
+                secondaryResidues,
+            };
+        }
+    }
     // Local working copy of the still-relevant assertions. We never mutate the
     // array we iterate; instead each pass rebuilds the list of assertions that
     // remain active, dropping any that have fired.
@@ -66,10 +79,14 @@ function formatResult(result) {
                 possible: false,
                 reasoningSteps: [
                     ...result.reasoningSteps,
-                    {
-                        inferenceStepType: "Deductive",
-                        sourceBeliefId: result.contradictionSourceBeliefId,
-                    },
+                    // A contradiction without a source belief means the explore's own
+                    // premises were mutually exclusive (e.g. A and NOT A supplied).
+                    result.contradictionSourceBeliefId !== undefined
+                        ? {
+                            inferenceStepType: "Deductive",
+                            sourceBeliefId: result.contradictionSourceBeliefId,
+                        }
+                        : { inferenceStepType: "PremiseContradiction" },
                 ],
                 arrayOfSecondaryResidues: [...new Set(result.secondaryResidues)],
             },
@@ -85,9 +102,14 @@ function formatResult(result) {
         },
     };
 }
-function exploreAssertions(explore, assertionSet, maxCaseSplitDepth = 0) {
+// Case-split explores an exponential branch tree in the worst case. Rather
+// than capping depth, runtime is bounded by a budget of recursive branch
+// visits; when exhausted the engine stops deepening and returns what has been
+// soundly established so far (never wrong, possibly incomplete).
+exports.DEFAULT_CASE_SPLIT_BUDGET = 50000;
+function exploreAssertions(explore, assertionSet, maxCaseSplitDepth = 0, budget = { used: 0, max: exports.DEFAULT_CASE_SPLIT_BUDGET }) {
     const result = maxCaseSplitDepth > 0
-        ? deduceWithCaseSplit(explore, assertionSet.assertions, maxCaseSplitDepth, 0)
+        ? deduceWithCaseSplit(explore, assertionSet.assertions, maxCaseSplitDepth, 0, budget)
         : propagate(explore, assertionSet.assertions);
     return formatResult(result);
 }
@@ -118,11 +140,13 @@ function isNewLiteral(prop, discoveries) {
 function intersectProperties(a, b) {
     return a.filter((pa) => b.some((pb) => pb.sentence === pa.sentence && pb.valence === pa.valence));
 }
-function deduceWithCaseSplit(explore, assertions, maxDepth, depth = 0) {
+function deduceWithCaseSplit(explore, assertions, maxDepth, depth = 0, budget = { used: 0, max: exports.DEFAULT_CASE_SPLIT_BUDGET }) {
     var _a;
-    // Start from the unit-propagation closure of the current facts.
+    budget.used++;
+    // Start from the unit-propagation closure of the current facts. When the
+    // budget is exhausted, stop deepening: propagation alone is still sound.
     const base = propagate(explore, assertions);
-    if (base.contradiction || depth >= maxDepth) {
+    if (base.contradiction || depth >= maxDepth || budget.used > budget.max) {
         return base;
     }
     let discoveries = base.discoveries;
@@ -139,8 +163,8 @@ function deduceWithCaseSplit(explore, assertions, maxDepth, depth = 0) {
                 continue; // determined mid-loop
             const asTrue = { sentence, valence: true };
             const asFalse = { sentence, valence: false };
-            const branchTrue = deduceWithCaseSplit([...discoveries, asTrue], assertions, maxDepth, depth + 1);
-            const branchFalse = deduceWithCaseSplit([...discoveries, asFalse], assertions, maxDepth, depth + 1);
+            const branchTrue = deduceWithCaseSplit([...discoveries, asTrue], assertions, maxDepth, depth + 1, budget);
+            const branchFalse = deduceWithCaseSplit([...discoveries, asFalse], assertions, maxDepth, depth + 1, budget);
             // What to add to the current facts as a result of this split.
             let forced = [];
             if (branchTrue.contradiction && branchFalse.contradiction) {

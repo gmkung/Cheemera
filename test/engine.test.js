@@ -176,5 +176,98 @@ const has = (props, s, v) => props.some((p) => p.sentence === s && p.valence ===
   check("13: depth 0 == default", JSON.stringify(def) === JSON.stringify(zero));
 }
 
+// ---------------------------------------------------------------------------
+// Input-hole regressions
+// ---------------------------------------------------------------------------
+const {
+  ValidationError,
+  validateExplore,
+  validateBeliefSet,
+  validateMaxCaseSplitDepth,
+} = require("../dist/utils/validation.js");
+const throwsValidation = (fn) => {
+  try { fn(); return false; } catch (e) { return e instanceof ValidationError; }
+};
+
+// 14. Contradictory explore (A and NOT A) => impossible, no exception, labelled step
+{
+  const a = generateAssertions(normaliseBeliefSet(bs([ifThen("r1", [P("X")], [P("Y")])])));
+  const r0 = exploreAssertions([P("A"), P("A", false)], a, 0);
+  const r2 = exploreAssertions([P("A"), P("A", false)], a, 2);
+  check("14: impossible at depth 0", r0.results.possible === false);
+  check("14: impossible at depth 2", r2.results.possible === false);
+  check("14: PremiseContradiction step", r0.results.reasoningSteps.some((s) => s.inferenceStepType === "PremiseContradiction"));
+}
+
+// 15. Unknown modal throws instead of silently dropping the rule
+{
+  let threw = false, msg = "";
+  try {
+    generateAssertions(normaliseBeliefSet(bs([ifThen("r1", [P("A")], [P("B")], "Sometimes")])));
+  } catch (e) { threw = true; msg = e.message; }
+  check("15: unknown modal throws", threw && /Sometimes/.test(msg) && /r1/.test(msg), msg);
+}
+
+// 16. Degenerate belief compiling to an empty assertion throws (would mark everything impossible)
+{
+  const degenerate = {
+    beliefUniqueId: "d1", originatingRuleSystemName: "t", originatingRuleSystemUuid: "u",
+    scenario: { type: "IF_THEN", antecedents: [[]], consequences: [{ modal: "Never", properties: [] }] },
+  };
+  let threw = false;
+  try { generateAssertions(normaliseBeliefSet(bs([degenerate]))); } catch (e) { threw = true; }
+  check("16: empty assertion throws", threw);
+}
+
+// 17. validateExplore: shape enforcement
+{
+  check("17: accepts empty array", (() => { validateExplore([]); return true; })());
+  check("17: rejects non-array", throwsValidation(() => validateExplore(undefined)));
+  check("17: rejects string valence", throwsValidation(() => validateExplore([{ sentence: "A", valence: "true" }])));
+  check("17: rejects empty sentence", throwsValidation(() => validateExplore([{ sentence: "  ", valence: true }])));
+}
+
+// 18. validateBeliefSet: antecedents [] rejected, [[]] allowed and means unconditional
+{
+  const mk = (ant) => bs([{ beliefUniqueId: "r1", originatingRuleSystemName: "t", originatingRuleSystemUuid: "u",
+    scenario: { type: "IF_THEN", antecedents: ant, consequences: [{ modal: "Always", properties: [P("C")] }] } }]);
+  check("18: antecedents [] rejected", throwsValidation(() => validateBeliefSet(mk([]))));
+  check("18: antecedents [[]] accepted", (() => { validateBeliefSet(mk([[]])); return true; })());
+  const a = generateAssertions(normaliseBeliefSet(mk([[]])));
+  const r = exploreAssertions([], a, 0);
+  check("18: [[]] deduces C unconditionally", has(deduced(r), "C", true));
+  check("18: unknown modal rejected by validation", throwsValidation(() =>
+    validateBeliefSet(bs([ifThen("r1", [P("A")], [P("B")], "Sometimes")]))));
+  check("18: empty consequence properties rejected", throwsValidation(() =>
+    validateBeliefSet(bs([{ beliefUniqueId: "r1", originatingRuleSystemName: "t", originatingRuleSystemUuid: "u",
+      scenario: { type: "IF_THEN", antecedents: [[P("A")]], consequences: [{ modal: "Never", properties: [] }] } }]))));
+}
+
+// 19. validateMaxCaseSplitDepth
+{
+  check("19: undefined -> 0", validateMaxCaseSplitDepth(undefined) === 0);
+  check("19: 3 -> 3", validateMaxCaseSplitDepth(3) === 3);
+  check("19: rejects string", throwsValidation(() => validateMaxCaseSplitDepth("2")));
+  check("19: rejects negative", throwsValidation(() => validateMaxCaseSplitDepth(-1)));
+  check("19: rejects fraction", throwsValidation(() => validateMaxCaseSplitDepth(1.5)));
+}
+
+// 20. Case-split budget: exhaustion degrades gracefully (sound, fast), never wrong
+{
+  // interlocked rules with many candidates: expensive at depth 3
+  const beliefs = [];
+  for (let i = 0; i < 12; i++) {
+    beliefs.push(ifThen("n" + i, [P("x" + i), P("x" + ((i + 1) % 12))], [P("y" + i)]));
+  }
+  const a = generateAssertions(normaliseBeliefSet(bs(beliefs)));
+  const t = process.hrtime.bigint();
+  const r = exploreAssertions([], a, 3, { used: 0, max: 50 }); // tiny budget
+  const ms = Number(process.hrtime.bigint() - t) / 1e6;
+  check("20: tiny budget returns quickly", ms < 500, ms);
+  check("20: result still sound (possible)", r.results.possible === true);
+  const dedLits = deduced(r);
+  check("20: no unsound deduction under budget", dedLits.length === 0, dedLits);
+}
+
 console.log(`engine.test.js: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
