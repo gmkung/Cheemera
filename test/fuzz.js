@@ -121,37 +121,38 @@ for (let i = 0; i < N; i++) {
     report(i, "impossible-without-source", "");
   }
 
-  // ---- Case-split soundness vs brute-force oracle (ground truth) ----
+  // ---- Case-split EXACTNESS vs brute-force oracle (ground truth) ----
+  // Backbone-based case-split is complete: the verdict and the deduced set
+  // must EQUAL the oracle's, not merely be sound.
   const consistent = oracle(assertions.assertions, explore);
-  const cs = exploreAssertions(clone(explore), { assertions: clone(assertions.assertions) }, 2);
+  const cs = exploreAssertions(clone(explore), { assertions: clone(assertions.assertions) }, 1);
 
   // determinism also holds with case-split on
-  const cs2 = exploreAssertions(clone(explore), { assertions: clone(assertions.assertions) }, 2);
+  const cs2 = exploreAssertions(clone(explore), { assertions: clone(assertions.assertions) }, 1);
   if (JSON.stringify(cs) !== JSON.stringify(cs2)) report(i, "case-split-non-deterministic", "");
 
-  if (consistent.length > 0) {
-    // SOUND verdict: a model exists, so the engine must NOT declare it impossible.
-    if (cs.results.possible === false) report(i, "UNSOUND-possible", "oracle SAT but engine says impossible");
-    // SOUND deductions: every deduced literal must hold in EVERY consistent world.
-    for (const L of engineDeduced(cs)) {
-      if (!consistent.every((w) => w[L.sentence] === L.valence)) {
-        report(i, "UNSOUND-deduction", `${L.sentence}:${L.valence} not entailed`);
-        break;
-      }
+  if (cs.results.possible !== consistent.length > 0) {
+    report(i, "WRONG-verdict", `oracle ${consistent.length > 0 ? "SAT" : "UNSAT"} but engine says possible=${cs.results.possible}`);
+  } else if (consistent.length > 0) {
+    // Oracle-entailed literals over sentences not fixed by the explore.
+    const exSents = new Set(explore.map((p) => p.sentence));
+    const want = new Set();
+    for (const s of SENTENCES) {
+      if (exSents.has(s)) continue;
+      if (consistent.every((w) => w[s] === true)) want.add(s + ":true");
+      if (consistent.every((w) => w[s] === false)) want.add(s + ":false");
     }
-  } else {
-    // Oracle UNSAT: engine may detect it (possible:false) or miss it
-    // (incomplete) but must never be unsound; deductions are vacuously fine.
+    const got = new Set(engineDeduced(cs).map((p) => p.sentence + ":" + p.valence));
+    const exact = want.size === got.size && [...want].every((x) => got.has(x));
+    if (!exact) report(i, "NOT-EXACT", `want=[${[...want]}] got=[${[...got]}]`);
   }
-
-  // SUPERSET: case-split must not lose any plain-propagation deduction.
-  const plainSet = new Set(engineDeduced(r1).map((p) => p.sentence + ":" + p.valence));
-  const csSet = new Set(engineDeduced(cs).map((p) => p.sentence + ":" + p.valence));
-  for (const lit of plainSet) if (!csSet.has(lit)) { report(i, "case-split-not-superset", lit); break; }
 
   // Optional differential: meaningful output + secondary SET must match the reference impl (depth 0 path).
   if (diffImpl) {
-    const rOld = diffImpl(clone(explore), { assertions: clone(assertions.assertions) });
+    // The pre-refactor implementation gated contradiction checks on the since-
+    // removed `exclude` flag; reconstruct it for a faithful comparison.
+    const withExclude = clone(assertions.assertions).map((a) => ({ ...a, exclude: true }));
+    const rOld = diffImpl(clone(explore), { assertions: withExclude });
     if (meaningful(r1) !== meaningful(rOld)) report(i, "DIFF-meaningful", `new=${meaningful(r1)} old=${meaningful(rOld)}`);
     if (secondarySet(r1) !== secondarySet(rOld)) report(i, "DIFF-secondary-set", "");
   }

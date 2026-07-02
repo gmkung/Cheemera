@@ -32,7 +32,6 @@ export const returnAssertionSet = (req: Request, res: Response) => {
   try {
     const beliefSet: BeliefSet = validateBeliefSet(req.body);
     const normalisedBeliefSet = normaliseBeliefSet(beliefSet);
-    console.log(JSON.stringify(normalisedBeliefSet))
     const assertionSet: AssertionSet = generateAssertions(normalisedBeliefSet);
     res.json(assertionSet);
   } catch (error) {

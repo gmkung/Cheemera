@@ -35,8 +35,8 @@ export interface BeliefSet {
   blindReferenceExternalIdArray: any[]; // Replace 'any' with a more specific type if possible
 }
 
+// A "nogood": a combination of properties that can never all hold at once.
 export interface Assertion {
-  exclude: boolean;
   properties: Property[];
   sourceBeliefId?: string;
 }

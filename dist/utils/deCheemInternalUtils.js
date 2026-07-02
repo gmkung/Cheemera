@@ -1,13 +1,14 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateAssertions = exports.normaliseBeliefSet = exports.breakdownBelief = exports.createAlwaysAssertions = exports.invertValences = exports.deduplicateProperties = void 0;
-const lodash_1 = __importDefault(require("lodash"));
 function deduplicateProperties(properties) {
-    return lodash_1.default.uniqWith(properties, (a, b) => {
-        return a.sentence === b.sentence && a.valence === b.valence;
+    const seen = new Set();
+    return properties.filter((p) => {
+        const key = p.sentence + (p.valence ? "+" : "-");
+        if (seen.has(key))
+            return false;
+        seen.add(key);
+        return true;
     });
 }
 exports.deduplicateProperties = deduplicateProperties;
@@ -36,36 +37,18 @@ function breakdownBelief(CompoundBelief) {
                         .filter((_, v) => i !== v)
                         .map((fp) => ({ modal: modalType, properties: fp })) }) })));
             return result;
-        default:
+        case "IF_THEN":
             return [CompoundBelief];
+        default:
+            // Fail loudly instead of silently dropping unrecognised scenario types,
+            // which would otherwise yield an empty assertion set and misleading
+            // "everything is possible" results.
+            throw new Error(`Unknown scenario type "${CompoundBelief.scenario.type}" in belief "${CompoundBelief.beliefUniqueId}"`);
     }
 }
 exports.breakdownBelief = breakdownBelief;
 function normaliseBeliefSet(beliefSet) {
-    let normalisedBeliefSet = {
-        beliefs: [],
-        beliefSetName: beliefSet.beliefSetName,
-        beliefSetOwner: beliefSet.beliefSetOwner,
-        beliefSetVersion: beliefSet.beliefSetVersion,
-        blindReferenceExternalIdArray: beliefSet.blindReferenceExternalIdArray,
-    };
-    for (let i = 0; i < beliefSet.beliefs.length; i++) {
-        const currentBelief = beliefSet.beliefs[i];
-        const type = currentBelief.scenario.type;
-        if (type === "IF_THEN") {
-            normalisedBeliefSet.beliefs.push(currentBelief);
-        }
-        else if (type === "MUTUAL_EXCLUSION" || type === "MUTUAL_INCLUSION") {
-            normalisedBeliefSet.beliefs = normalisedBeliefSet.beliefs.concat(breakdownBelief(currentBelief));
-        }
-        else {
-            // Fail loudly instead of silently dropping unrecognised scenario types,
-            // which would otherwise yield an empty assertion set and misleading
-            // "everything is possible" results.
-            throw new Error(`Unknown scenario type "${type}" in belief "${currentBelief.beliefUniqueId}"`);
-        }
-    }
-    return normalisedBeliefSet;
+    return Object.assign(Object.assign({}, beliefSet), { beliefs: beliefSet.beliefs.flatMap(breakdownBelief) });
 }
 exports.normaliseBeliefSet = normaliseBeliefSet;
 function generateAssertions(beliefSet) {
@@ -83,7 +66,6 @@ function generateAssertions(beliefSet) {
                         consequence.properties.filter((obj) => !antecedent.some((fp) => fp.sentence === obj.sentence && fp.valence === obj.valence)));
                         toExclude.forEach((item) => {
                             let assertObj = {
-                                exclude: true, //Always set to exclude. This line can be removed in the future to speed up the program, as I'm not generating 'possible' cases anymore to save memory.
                                 properties: deduplicateProperties(item),
                                 sourceBeliefId: belief.beliefUniqueId,
                             };
@@ -92,7 +74,6 @@ function generateAssertions(beliefSet) {
                     }
                     else if (consequence.modal === "Never") {
                         let assertObj = {
-                            exclude: true, //Always set to exclude. This line can be removed in the future to speed up the program, as I'm not generating 'possible' cases anymore to save memory.
                             properties: deduplicateProperties(antecedent.concat(consequence.properties)),
                             sourceBeliefId: belief.beliefUniqueId,
                         };

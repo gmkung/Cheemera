@@ -18,7 +18,6 @@ const returnAssertionSet = (req, res) => {
     try {
         const beliefSet = (0, validation_1.validateBeliefSet)(req.body);
         const normalisedBeliefSet = (0, deCheemInternalUtils_1.normaliseBeliefSet)(beliefSet);
-        console.log(JSON.stringify(normalisedBeliefSet));
         const assertionSet = (0, deCheemInternalUtils_1.generateAssertions)(normalisedBeliefSet);
         res.json(assertionSet);
     }

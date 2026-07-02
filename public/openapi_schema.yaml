@@ -46,11 +46,14 @@ paths:
                   minimum: 0
                   default: 0
                   description: >
-                    Depth of reasoning-by-cases (case-split) analysis. 0 (default)
-                    uses plain unit propagation. Higher values let the engine
-                    deduce properties that hold across every value of undetermined
-                    variables (e.g. "if A then Z" and "if not-A then Z" entails Z),
-                    at increasing computational cost.
+                    Enables reasoning-by-cases (case-split) analysis. 0 (default)
+                    uses plain unit propagation. Any value >= 1 additionally
+                    deduces every property that holds across all consistent
+                    situations regardless of undetermined variables (e.g. "if A
+                    then Z" and "if not-A then Z" entails Z), and detects belief
+                    sets with no consistent situation at all. Analysis is
+                    complete unless the internal compute budget is exhausted,
+                    which is reported in resultReason.
       responses:
         '200':
           description: Successfully explored the BeliefSet
@@ -132,8 +135,6 @@ components:
     Assertion:
       type: object
       properties:
-        exclude:
-          type: boolean
         properties:
           type: array
           items:

@@ -1,24 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deduceWithCaseSplit = exports.exploreAssertions = exports.DEFAULT_CASE_SPLIT_BUDGET = exports.propagate = void 0;
+exports.exploreAssertions = exports.DEFAULT_CASE_SPLIT_BUDGET = exports.propagate = void 0;
 const deCheemInternalUtils_1 = require("./deCheemInternalUtils");
 function propagate(explore, assertions) {
     const discoveries = [...explore];
     const reasoningSteps = [];
     const secondaryResidues = [];
-    // Premises asserting both valences of the same sentence describe an empty
-    // set of situations: no belief is needed to make this impossible. Reported
-    // as an ordinary contradiction (no sourceBeliefId), not an error.
-    for (const p of discoveries) {
-        if (discoveries.some((o) => o.sentence === p.sentence && o.valence !== p.valence)) {
-            return {
-                contradiction: true,
-                discoveries,
-                reasoningSteps,
-                secondaryResidues,
-            };
-        }
-    }
     // Local working copy of the still-relevant assertions. We never mutate the
     // array we iterate; instead each pass rebuilds the list of assertions that
     // remain active, dropping any that have fired.
@@ -32,6 +19,7 @@ function propagate(explore, assertions) {
                 // The full forbidden combination is realised: the explore is impossible.
                 return {
                     contradiction: true,
+                    contradictionKind: "belief",
                     contradictionSourceBeliefId: assertion.sourceBeliefId,
                     discoveries,
                     reasoningSteps,
@@ -39,7 +27,8 @@ function propagate(explore, assertions) {
                 };
             }
             const residueObj = calculateResidue(assertion, discoveries);
-            if (residueObj.length === 1 && isNewProperty(residueObj[0], discoveries)) {
+            if (residueObj.length === 1 &&
+                isUndetermined(residueObj[0].sentence, discoveries)) {
                 // Unit propagation: every literal but one is satisfied, so the last one
                 // is forced to its opposite valence.
                 const deduced = (0, deCheemInternalUtils_1.invertValences)(residueObj);
@@ -67,34 +56,35 @@ function propagate(explore, assertions) {
     };
 }
 exports.propagate = propagate;
-// Shapes the internal propagation/case-split result into the public
-// ExploreResult. Kept in one place so the maxCaseSplitDepth === 0 path stays
-// byte-for-byte identical to the original behaviour.
+// Shapes the internal result into the public ExploreResult. Kept in one place
+// so the maxCaseSplitDepth === 0 path stays byte-for-byte identical to the
+// original behaviour.
 function formatResult(result) {
+    const resultReason = result.incomplete
+        ? "Compute budget exhausted before completing case-split analysis; deductions are sound but may be incomplete"
+        : "Successful with no errors found";
     if (result.contradiction) {
+        const contradictionStep = result.contradictionKind === "premise"
+            ? { inferenceStepType: "PremiseContradiction" }
+            : result.contradictionKind === "caseSplit"
+                ? { inferenceStepType: "CaseSplitContradiction" }
+                : {
+                    inferenceStepType: "Deductive",
+                    sourceBeliefId: result.contradictionSourceBeliefId,
+                };
         return {
             resultCode: "Success",
-            resultReason: "Successful with no errors found",
+            resultReason,
             results: {
                 possible: false,
-                reasoningSteps: [
-                    ...result.reasoningSteps,
-                    // A contradiction without a source belief means the explore's own
-                    // premises were mutually exclusive (e.g. A and NOT A supplied).
-                    result.contradictionSourceBeliefId !== undefined
-                        ? {
-                            inferenceStepType: "Deductive",
-                            sourceBeliefId: result.contradictionSourceBeliefId,
-                        }
-                        : { inferenceStepType: "PremiseContradiction" },
-                ],
+                reasoningSteps: [...result.reasoningSteps, contradictionStep],
                 arrayOfSecondaryResidues: [...new Set(result.secondaryResidues)],
             },
         };
     }
     return {
         resultCode: "Success",
-        resultReason: "Successful with no errors found",
+        resultReason,
         results: {
             possible: true,
             reasoningSteps: result.reasoningSteps,
@@ -102,136 +92,217 @@ function formatResult(result) {
         },
     };
 }
-// Case-split explores an exponential branch tree in the worst case. Rather
-// than capping depth, runtime is bounded by a budget of recursive branch
-// visits; when exhausted the engine stops deepening and returns what has been
-// soundly established so far (never wrong, possibly incomplete).
+// Case-split analysis explores hypothetical worlds; runtime is bounded by a
+// budget of search nodes rather than a nesting depth. When exhausted the
+// engine stops searching and returns what has been soundly established.
 exports.DEFAULT_CASE_SPLIT_BUDGET = 50000;
 function exploreAssertions(explore, assertionSet, maxCaseSplitDepth = 0, budget = { used: 0, max: exports.DEFAULT_CASE_SPLIT_BUDGET }) {
+    // Premises asserting both valences of the same sentence describe an empty
+    // set of situations: impossible before any belief is consulted. Reported as
+    // an ordinary contradiction, not an error.
+    for (const p of explore) {
+        if (explore.some((o) => o.sentence === p.sentence && o.valence !== p.valence)) {
+            return formatResult({
+                contradiction: true,
+                contradictionKind: "premise",
+                discoveries: [...explore],
+                reasoningSteps: [],
+                secondaryResidues: [],
+            });
+        }
+    }
     const result = maxCaseSplitDepth > 0
-        ? deduceWithCaseSplit(explore, assertionSet.assertions, maxCaseSplitDepth, 0, budget)
+        ? caseSplitAnalysis(explore, assertionSet.assertions, budget)
         : propagate(explore, assertionSet.assertions);
     return formatResult(result);
 }
 exports.exploreAssertions = exploreAssertions;
 // ---------------------------------------------------------------------------
-// Case-split (reasoning by cases)
+// Case-split analysis (reasoning by cases), backbone-style
 // ---------------------------------------------------------------------------
-// Unit propagation alone only fires a rule when a single literal is left
-// undetermined. Some conclusions instead require showing they hold for EVERY
-// value of an undetermined variable: "if A then Z" and "if not-A then Z" entail
-// Z even though A is unknown. deduceWithCaseSplit adds that by, for each
-// relevant undetermined sentence, propagating both branches and:
-//   * both branches contradict      -> the current facts are inconsistent;
-//   * exactly one branch contradicts -> the other value is forced (failed
-//                                       literal rule);
-//   * neither contradicts            -> any literal common to both branch
-//                                       closures is entailed regardless (the
-//                                       intersection), and is deduced.
-// All three moves are sound entailment, so the result only ever adds correct
-// deductions (it remains incomplete at finite depth, which is the cost knob).
+// Unit propagation only fires a rule when a single literal is left
+// undetermined. Case-split analysis additionally finds every literal that
+// holds in ALL consistent situations ("if A then Z" and "if not-A then Z"
+// entail Z even though A is unknown), and detects belief sets with no
+// consistent situation at all. Any maxCaseSplitDepth >= 1 enables it; results
+// are complete (all entailed literals found) unless the budget runs out.
+//
+// Method, per independent component of the belief set:
+//   1. Search for one consistent world (DPLL: propagate + branch).
+//      None exists -> the explore is impossible.
+//   2. Candidate literals = undetermined residue sentences, with the valence
+//      that world assigns. Any world found along the way instantly eliminates
+//      every candidate it falsifies (a counterexample disproves entailment).
+//   3. For each surviving candidate L: search for a world satisfying NOT L.
+//      No such world -> L is entailed; absorb it and re-propagate.
+//
+// Components: sentences never sharing an assertion cannot influence each
+// other, so each connected component is analysed independently. This keeps
+// the search confined to the sub-problem a deduction actually depends on.
 function isUndetermined(sentence, discoveries) {
     return !discoveries.some((d) => d.sentence === sentence);
 }
-function isNewLiteral(prop, discoveries) {
-    return !discoveries.some((d) => d.sentence === prop.sentence && d.valence === prop.valence);
+function factsKey(facts) {
+    return facts
+        .map((p) => p.sentence + (p.valence ? "+" : "-"))
+        .sort()
+        .join("|");
 }
-// Literals present (same sentence AND valence) in both property lists.
-function intersectProperties(a, b) {
-    return a.filter((pa) => b.some((pb) => pb.sentence === pa.sentence && pb.valence === pa.valence));
-}
-function deduceWithCaseSplit(explore, assertions, maxDepth, depth = 0, budget = { used: 0, max: exports.DEFAULT_CASE_SPLIT_BUDGET }) {
-    var _a;
-    budget.used++;
-    // Start from the unit-propagation closure of the current facts. When the
-    // budget is exhausted, stop deepening: propagation alone is still sound.
-    const base = propagate(explore, assertions);
-    if (base.contradiction || depth >= maxDepth || budget.used > budget.max) {
-        return base;
-    }
-    let discoveries = base.discoveries;
-    let reasoningSteps = base.reasoningSteps;
-    let secondaryResidues = base.secondaryResidues;
-    let changed = true;
-    while (changed) {
-        changed = false;
-        // The undetermined sentences worth branching on are exactly the ones the
-        // engine already flagged as relevant-but-stuck: the secondary residues.
-        const candidates = [...new Set(secondaryResidues)].filter((s) => isUndetermined(s, discoveries));
-        for (const sentence of candidates) {
-            if (!isUndetermined(sentence, discoveries))
-                continue; // determined mid-loop
-            const asTrue = { sentence, valence: true };
-            const asFalse = { sentence, valence: false };
-            const branchTrue = deduceWithCaseSplit([...discoveries, asTrue], assertions, maxDepth, depth + 1, budget);
-            const branchFalse = deduceWithCaseSplit([...discoveries, asFalse], assertions, maxDepth, depth + 1, budget);
-            // What to add to the current facts as a result of this split.
-            let forced = [];
-            if (branchTrue.contradiction && branchFalse.contradiction) {
-                // Neither value is viable: the current facts themselves are impossible.
-                return {
-                    contradiction: true,
-                    contradictionSourceBeliefId: (_a = branchTrue.contradictionSourceBeliefId) !== null && _a !== void 0 ? _a : branchFalse.contradictionSourceBeliefId,
-                    discoveries,
-                    reasoningSteps,
-                    secondaryResidues,
-                };
-            }
-            else if (branchTrue.contradiction) {
-                forced = [asFalse]; // P:true impossible => P:false forced
-            }
-            else if (branchFalse.contradiction) {
-                forced = [asTrue]; // P:false impossible => P:true forced
-            }
-            else {
-                // Both viable: anything true in both closures holds either way.
-                forced = intersectProperties(branchTrue.discoveries, branchFalse.discoveries).filter((p) => isNewLiteral(p, discoveries));
-            }
-            if (forced.length === 0)
-                continue;
-            for (const f of forced) {
-                reasoningSteps.push({
-                    inferenceStepType: "CaseSplit",
-                    deducedProperty: [f],
-                    caseSplitOn: sentence,
-                });
-            }
-            // Re-propagate with the newly forced facts to reach the new closure; this
-            // may unlock further ordinary deductions and refreshes the residues.
-            const reprop = propagate([...discoveries, ...forced], assertions);
-            reasoningSteps = [...reasoningSteps, ...reprop.reasoningSteps];
-            if (reprop.contradiction) {
-                return {
-                    contradiction: true,
-                    contradictionSourceBeliefId: reprop.contradictionSourceBeliefId,
-                    discoveries: reprop.discoveries,
-                    reasoningSteps,
-                    secondaryResidues: reprop.secondaryResidues,
-                };
-            }
-            discoveries = reprop.discoveries;
-            secondaryResidues = reprop.secondaryResidues;
-            changed = true;
+// Groups assertions into connected components: assertions belong together when
+// they (transitively) share a sentence. Union-find over sentences.
+function componentsOf(assertions) {
+    const parent = new Map();
+    const find = (x) => {
+        if (!parent.has(x))
+            parent.set(x, x);
+        let root = x;
+        while (parent.get(root) !== root)
+            root = parent.get(root);
+        while (parent.get(x) !== root) {
+            const next = parent.get(x);
+            parent.set(x, root);
+            x = next;
+        }
+        return root;
+    };
+    for (const a of assertions) {
+        for (let i = 1; i < a.properties.length; i++) {
+            parent.set(find(a.properties[0].sentence), find(a.properties[i].sentence));
         }
     }
+    const groups = new Map();
+    for (const a of assertions) {
+        const root = find(a.properties[0].sentence);
+        if (!groups.has(root))
+            groups.set(root, []);
+        groups.get(root).push(a);
+    }
+    return [...groups.values()];
+}
+// DPLL satisfiability over one component: is there a complete situation
+// consistent with `facts`? Propagation closures are memoised (propagate is
+// pure), collapsing repeated sub-searches.
+function satisfiable(facts, assertions, budget, memo) {
+    budget.used++;
+    if (budget.used > budget.max)
+        return { status: "unknown" };
+    const k = factsKey(facts);
+    const cached = memo.get(k);
+    const r = cached !== null && cached !== void 0 ? cached : propagate(facts, assertions);
+    if (!cached)
+        memo.set(k, r);
+    if (r.contradiction)
+        return { status: "unsat" };
+    const open = [...new Set(r.secondaryResidues)].filter((s) => isUndetermined(s, r.discoveries));
+    if (open.length === 0) {
+        // Every remaining assertion is permanently satisfied: any completion of
+        // the current facts is a consistent world.
+        return { status: "sat", model: r.discoveries };
+    }
+    // Branch on the sentence appearing in the most stuck assertions.
+    const freq = new Map();
+    for (const s of r.secondaryResidues)
+        freq.set(s, (freq.get(s) || 0) + 1);
+    open.sort((a, b) => freq.get(b) - freq.get(a));
+    const sentence = open[0];
+    const asTrue = satisfiable([...r.discoveries, { sentence, valence: true }], assertions, budget, memo);
+    if (asTrue.status !== "unsat")
+        return asTrue;
+    return satisfiable([...r.discoveries, { sentence, valence: false }], assertions, budget, memo);
+}
+function caseSplitAnalysis(explore, assertions, budget) {
+    const base = propagate(explore, assertions);
+    if (base.contradiction)
+        return base;
+    let discoveries = base.discoveries;
+    const reasoningSteps = [...base.reasoningSteps];
+    let incomplete = false;
+    for (const component of componentsOf(assertions)) {
+        const sentences = new Set(component.flatMap((a) => a.properties.map((p) => p.sentence)));
+        const memo = new Map();
+        let facts = discoveries.filter((p) => sentences.has(p.sentence));
+        const first = satisfiable(facts, component, budget, memo);
+        if (first.status === "unknown") {
+            incomplete = true;
+            continue;
+        }
+        if (first.status === "unsat") {
+            // No consistent situation exists for this component's constraints.
+            return {
+                contradiction: true,
+                contradictionKind: "caseSplit",
+                discoveries,
+                reasoningSteps,
+                secondaryResidues: base.secondaryResidues,
+                incomplete,
+            };
+        }
+        // Candidates: undetermined residue sentences of this component, with the
+        // valence the first-found world assigns (the opposite valence already has
+        // that world as a counterexample). Sentences absent from the model are
+        // free either way, hence not entailed.
+        let candidates = [];
+        for (const s of new Set(base.secondaryResidues)) {
+            if (!sentences.has(s) || !isUndetermined(s, facts))
+                continue;
+            const inModel = first.model.find((p) => p.sentence === s);
+            if (inModel)
+                candidates.push({ sentence: s, valence: inModel.valence });
+        }
+        while (candidates.length > 0) {
+            const L = candidates.shift();
+            if (!isUndetermined(L.sentence, facts))
+                continue;
+            const refute = satisfiable([...facts, { sentence: L.sentence, valence: !L.valence }], component, budget, memo);
+            if (refute.status === "unknown") {
+                incomplete = true;
+                break;
+            }
+            if (refute.status === "unsat") {
+                // No situation satisfies NOT L, so L holds in all of them: entailed.
+                reasoningSteps.push({
+                    inferenceStepType: "CaseSplit",
+                    deducedProperty: [L],
+                    caseSplitOn: L.sentence,
+                });
+                const absorbed = propagate([...facts, L], component);
+                reasoningSteps.push(...absorbed.reasoningSteps);
+                facts = absorbed.discoveries;
+                candidates = candidates.filter((c) => isUndetermined(c.sentence, facts));
+            }
+            else {
+                // Found a world where NOT L holds: L is not entailed, and the world
+                // also disproves every other candidate it falsifies.
+                candidates = candidates.filter((c) => {
+                    const m = refute.model.find((p) => p.sentence === c.sentence);
+                    return !m || m.valence === c.valence;
+                });
+            }
+        }
+        // Merge this component's conclusions into the global picture.
+        const known = new Set(discoveries.map((p) => p.sentence));
+        discoveries = [
+            ...discoveries,
+            ...facts.filter((p) => !known.has(p.sentence)),
+        ];
+    }
+    // Fresh residues for the enlarged fact set (components cannot interact, so
+    // no new unit deductions can appear here).
+    const final = propagate(discoveries, assertions);
     return {
         contradiction: false,
         discoveries,
         reasoningSteps,
-        secondaryResidues,
+        secondaryResidues: final.secondaryResidues,
+        incomplete: incomplete || undefined,
     };
 }
-exports.deduceWithCaseSplit = deduceWithCaseSplit;
 //helper functions below:
 function isAssertionExcluded(assertion, exploreObj) {
-    return (assertion.exclude &&
-        assertion.properties.every((prop) => exploreObj.some((obj) => obj.sentence === prop.sentence && obj.valence === prop.valence)));
+    return assertion.properties.every((prop) => exploreObj.some((obj) => obj.sentence === prop.sentence && obj.valence === prop.valence));
 }
 function calculateResidue(assertion, exploreObj) {
     return assertion.properties.filter((prop) => !exploreObj.some((obj) => obj.sentence === prop.sentence && obj.valence === prop.valence));
-}
-function isNewProperty(property, exploreObj) {
-    return !exploreObj.some((obj) => obj.sentence === property.sentence);
 }
 function calculateSecondaryResidues(residue, exploreObj) {
     return residue

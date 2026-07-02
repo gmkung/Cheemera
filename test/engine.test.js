@@ -267,6 +267,62 @@ const throwsValidation = (fn) => {
   check("20: result still sound (possible)", r.results.possible === true);
   const dedLits = deduced(r);
   check("20: no unsound deduction under budget", dedLits.length === 0, dedLits);
+  check("20: exhaustion reported in resultReason", /budget/i.test(r.resultReason), r.resultReason);
+}
+
+// 21. Completeness: any depth >= 1 finds ALL entailed literals, regardless of
+// how many nested cases the entailment needs (backbone-based analysis).
+{
+  const combos = (factors, conclusion, skip = -1) => {
+    const beliefs = [];
+    for (let m = 0; m < 1 << factors.length; m++) {
+      if (m === skip) continue;
+      beliefs.push(ifThen("c" + m, factors.map((f, j) => P(f, !!(m & (1 << j)))), [P(conclusion)]));
+    }
+    return beliefs;
+  };
+  for (const factors of [["a", "b"], ["a", "b", "c"], ["a", "b", "c", "d"]]) {
+    const a = generateAssertions(normaliseBeliefSet(bs(combos(factors, "Z"))));
+    const r = exploreAssertions([], a, 1);
+    check(`21: degree-${factors.length} entailment found at depth 1`, has(deduced(r), "Z", true));
+    check(`21: degree-${factors.length} step is CaseSplit`, r.results.reasoningSteps.some((s) => s.inferenceStepType === "CaseSplit" && (s.deducedProperty || []).some((p) => p.sentence === "Z")));
+  }
+  // Negative control: one uncovered combination -> Z must never be deduced.
+  const a = generateAssertions(normaliseBeliefSet(bs(combos(["a", "b", "c"], "Z", 5))));
+  const r = exploreAssertions([], a, 1);
+  check("21: negative control never deduces Z", !has(deduced(r), "Z", true), deduced(r));
+}
+
+// 22. Hidden impossibility: jointly unsatisfiable rules, invisible to unit
+// propagation, detected by case-split with a CaseSplitContradiction step.
+{
+  const beliefs = [
+    ifThen("r1", [P("A")], [P("B")]),
+    ifThen("r2", [P("A")], [P("B", false)]),
+    ifThen("r3", [P("A", false)], [P("B")]),
+    ifThen("r4", [P("A", false)], [P("B", false)]),
+  ];
+  const a = generateAssertions(normaliseBeliefSet(bs(beliefs)));
+  const r0 = exploreAssertions([], a, 0);
+  const r1 = exploreAssertions([], a, 1);
+  check("22: propagation alone misses it", r0.results.possible === true);
+  check("22: case-split detects impossibility", r1.results.possible === false);
+  check("22: CaseSplitContradiction step present", r1.results.reasoningSteps.some((s) => s.inferenceStepType === "CaseSplitContradiction"));
+}
+
+// 23. Component isolation: a deep deduction stays fast amid unrelated rules.
+{
+  const beliefs = [];
+  for (let m = 0; m < 16; m++) {
+    beliefs.push(ifThen("z" + m, ["a", "b", "c", "d"].map((f, j) => P(f, !!(m & (1 << j)))), [P("Z")]));
+  }
+  for (let i = 0; i < 40; i++) beliefs.push(ifThen("n" + i, [P("p" + i), P("q" + i)], [P("r" + i)]));
+  const a = generateAssertions(normaliseBeliefSet(bs(beliefs)));
+  const t = process.hrtime.bigint();
+  const r = exploreAssertions([], a, 1);
+  const ms = Number(process.hrtime.bigint() - t) / 1e6;
+  check("23: degree-4 deduction found amid 40 noise rules", has(deduced(r), "Z", true));
+  check("23: completes fast (<250ms)", ms < 250, ms);
 }
 
 console.log(`engine.test.js: ${pass} passed, ${fail} failed`);

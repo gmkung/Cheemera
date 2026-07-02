@@ -9,10 +9,13 @@ import {
   Assertion,
 } from "../types/interfaces";
 
-import _ from "lodash";
 export function deduplicateProperties(properties: Property[]): Property[] {
-  return _.uniqWith(properties, (a, b) => {
-    return a.sentence === b.sentence && a.valence === b.valence;
+  const seen = new Set<string>();
+  return properties.filter((p) => {
+    const key = p.sentence + (p.valence ? "+" : "-");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
 }
 
@@ -60,40 +63,23 @@ export function breakdownBelief(CompoundBelief: Belief): Belief[] {
         })
       );
       return result;
-    default:
+    case "IF_THEN":
       return [CompoundBelief];
-  }
-}
-
-export function normaliseBeliefSet(beliefSet: BeliefSet): BeliefSet {
-  let normalisedBeliefSet: BeliefSet = {
-    beliefs: [],
-    beliefSetName: beliefSet.beliefSetName,
-    beliefSetOwner: beliefSet.beliefSetOwner,
-    beliefSetVersion: beliefSet.beliefSetVersion,
-    blindReferenceExternalIdArray: beliefSet.blindReferenceExternalIdArray,
-  };
-
-  for (let i = 0; i < beliefSet.beliefs.length; i++) {
-    const currentBelief: Belief = beliefSet.beliefs[i];
-    const type: string = currentBelief.scenario.type;
-
-    if (type === "IF_THEN") {
-      normalisedBeliefSet.beliefs.push(currentBelief);
-    } else if (type === "MUTUAL_EXCLUSION" || type === "MUTUAL_INCLUSION") {
-      normalisedBeliefSet.beliefs = normalisedBeliefSet.beliefs.concat(
-        breakdownBelief(currentBelief)
-      );
-    } else {
+    default:
       // Fail loudly instead of silently dropping unrecognised scenario types,
       // which would otherwise yield an empty assertion set and misleading
       // "everything is possible" results.
       throw new Error(
-        `Unknown scenario type "${type}" in belief "${currentBelief.beliefUniqueId}"`
+        `Unknown scenario type "${CompoundBelief.scenario.type}" in belief "${CompoundBelief.beliefUniqueId}"`
       );
-    }
   }
-  return normalisedBeliefSet;
+}
+
+export function normaliseBeliefSet(beliefSet: BeliefSet): BeliefSet {
+  return {
+    ...beliefSet,
+    beliefs: beliefSet.beliefs.flatMap(breakdownBelief),
+  };
 }
 
 export function generateAssertions(beliefSet: BeliefSet): AssertionSet {
@@ -120,7 +106,6 @@ export function generateAssertions(beliefSet: BeliefSet): AssertionSet {
             );
             toExclude.forEach((item: Property[]) => {
               let assertObj: Assertion = {
-                exclude: true, //Always set to exclude. This line can be removed in the future to speed up the program, as I'm not generating 'possible' cases anymore to save memory.
                 properties: deduplicateProperties(item),
                 sourceBeliefId: belief.beliefUniqueId,
               };
@@ -128,7 +113,6 @@ export function generateAssertions(beliefSet: BeliefSet): AssertionSet {
             });
           } else if (consequence.modal === "Never") {
             let assertObj: Assertion = {
-              exclude: true, //Always set to exclude. This line can be removed in the future to speed up the program, as I'm not generating 'possible' cases anymore to save memory.
               properties: deduplicateProperties(
                 antecedent.concat(consequence.properties)
               ),
