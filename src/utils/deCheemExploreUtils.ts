@@ -17,6 +17,8 @@ export interface PropagateResult {
   // premises, or case-split analysis (no single belief responsible).
   contradictionKind?: "belief" | "premise" | "caseSplit";
   contradictionSourceBeliefId?: string;
+  // For caseSplit contradictions: the beliefs the refutation rests on.
+  contradictionViaBeliefs?: string[];
   discoveries: Property[];
   reasoningSteps: ReasoningStep[];
   secondaryResidues: string[];
@@ -105,7 +107,12 @@ function formatResult(result: PropagateResult): ExploreResult {
       result.contradictionKind === "premise"
         ? { inferenceStepType: "PremiseContradiction" }
         : result.contradictionKind === "caseSplit"
-        ? { inferenceStepType: "CaseSplitContradiction" }
+        ? {
+            inferenceStepType: "CaseSplitContradiction",
+            ...(result.contradictionViaBeliefs?.length
+              ? { viaBeliefs: result.contradictionViaBeliefs }
+              : {}),
+          }
         : {
             inferenceStepType: "Deductive",
             sourceBeliefId: result.contradictionSourceBeliefId,
@@ -245,12 +252,15 @@ type SatOutcome =
 
 // DPLL satisfiability over one component: is there a complete situation
 // consistent with `facts`? Propagation closures are memoised (propagate is
-// pure), collapsing repeated sub-searches.
+// pure), collapsing repeated sub-searches. `conflicts` collects the ids of
+// beliefs that fired or excluded along explored branches; when the search
+// ends in "unsat" this is the set of beliefs the refutation rests on.
 function satisfiable(
   facts: Property[],
   assertions: Assertion[],
   budget: CaseSplitBudget,
-  memo: Map<string, PropagateResult>
+  memo: Map<string, PropagateResult>,
+  conflicts?: Set<string>
 ): SatOutcome {
   budget.used++;
   if (budget.used > budget.max) return { status: "unknown" };
@@ -259,6 +269,14 @@ function satisfiable(
   const cached = memo.get(k);
   const r = cached ?? propagate(facts, assertions);
   if (!cached) memo.set(k, r);
+  if (conflicts) {
+    for (const step of r.reasoningSteps) {
+      if (step.sourceBeliefId !== undefined) conflicts.add(step.sourceBeliefId);
+    }
+    if (r.contradictionSourceBeliefId !== undefined) {
+      conflicts.add(r.contradictionSourceBeliefId);
+    }
+  }
   if (r.contradiction) return { status: "unsat" };
 
   const open = [...new Set(r.secondaryResidues)].filter((s) =>
@@ -280,14 +298,16 @@ function satisfiable(
     [...r.discoveries, { sentence, valence: true }],
     assertions,
     budget,
-    memo
+    memo,
+    conflicts
   );
   if (asTrue.status !== "unsat") return asTrue;
   return satisfiable(
     [...r.discoveries, { sentence, valence: false }],
     assertions,
     budget,
-    memo
+    memo,
+    conflicts
   );
 }
 
@@ -310,7 +330,8 @@ function caseSplitAnalysis(
     const memo = new Map<string, PropagateResult>();
     let facts = discoveries.filter((p) => sentences.has(p.sentence));
 
-    const first = satisfiable(facts, component, budget, memo);
+    const firstConflicts = new Set<string>();
+    const first = satisfiable(facts, component, budget, memo, firstConflicts);
     if (first.status === "unknown") {
       incomplete = true;
       continue;
@@ -320,6 +341,7 @@ function caseSplitAnalysis(
       return {
         contradiction: true,
         contradictionKind: "caseSplit",
+        contradictionViaBeliefs: [...firstConflicts].sort(),
         discoveries,
         reasoningSteps,
         secondaryResidues: base.secondaryResidues,
@@ -342,11 +364,13 @@ function caseSplitAnalysis(
       const L = candidates.shift()!;
       if (!isUndetermined(L.sentence, facts)) continue;
 
+      const refuteConflicts = new Set<string>();
       const refute = satisfiable(
         [...facts, { sentence: L.sentence, valence: !L.valence }],
         component,
         budget,
-        memo
+        memo,
+        refuteConflicts
       );
       if (refute.status === "unknown") {
         incomplete = true;
@@ -358,6 +382,7 @@ function caseSplitAnalysis(
           inferenceStepType: "CaseSplit",
           deducedProperty: [L],
           caseSplitOn: L.sentence,
+          viaBeliefs: [...refuteConflicts].sort(),
         });
         const absorbed = propagate([...facts, L], component);
         reasoningSteps.push(...absorbed.reasoningSteps);

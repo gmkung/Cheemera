@@ -180,8 +180,25 @@ components:
             $ref: '#/components/schemas/Property'
         inferenceStepType:
           type: string
+          description: >
+            "Deductive" (a single rule fired; see sourceBeliefId), "CaseSplit"
+            (holds in every consistent situation; see caseSplitOn and
+            viaBeliefs), "CaseSplitContradiction" (no consistent situation
+            exists at all; see viaBeliefs), or "PremiseContradiction" (the
+            explore asserted both valences of the same sentence).
         sourceBeliefId:
           type: string
+        caseSplitOn:
+          type: string
+          description: For CaseSplit steps, the sentence whose cases were analysed.
+        viaBeliefs:
+          type: array
+          items:
+            type: string
+          description: >
+            For CaseSplit and CaseSplitContradiction steps, the ids of the
+            beliefs the refutation rests on (case-split conclusions come from
+            the interplay of several beliefs rather than one rule).
     Explore:
       type: array
       items:

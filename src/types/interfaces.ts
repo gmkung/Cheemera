@@ -63,4 +63,8 @@ export interface ReasoningStep {
   // For "CaseSplit" steps: the sentence whose two truth-values were both
   // explored to force this deduction (the deduction holds either way).
   caseSplitOn?: string;
+  // For "CaseSplit"/"CaseSplitContradiction" steps: the beliefs involved in
+  // refuting the alternative. Case-split conclusions come from the interplay
+  // of several beliefs rather than a single rule.
+  viaBeliefs?: string[];
 }

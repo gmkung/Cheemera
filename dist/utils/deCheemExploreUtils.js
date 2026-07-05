@@ -60,6 +60,7 @@ exports.propagate = propagate;
 // so the maxCaseSplitDepth === 0 path stays byte-for-byte identical to the
 // original behaviour.
 function formatResult(result) {
+    var _a;
     const resultReason = result.incomplete
         ? "Compute budget exhausted before completing case-split analysis; deductions are sound but may be incomplete"
         : "Successful with no errors found";
@@ -67,11 +68,12 @@ function formatResult(result) {
         const contradictionStep = result.contradictionKind === "premise"
             ? { inferenceStepType: "PremiseContradiction" }
             : result.contradictionKind === "caseSplit"
-                ? { inferenceStepType: "CaseSplitContradiction" }
-                : {
-                    inferenceStepType: "Deductive",
-                    sourceBeliefId: result.contradictionSourceBeliefId,
-                };
+                ? Object.assign({ inferenceStepType: "CaseSplitContradiction" }, (((_a = result.contradictionViaBeliefs) === null || _a === void 0 ? void 0 : _a.length)
+                    ? { viaBeliefs: result.contradictionViaBeliefs }
+                    : {})) : {
+                inferenceStepType: "Deductive",
+                sourceBeliefId: result.contradictionSourceBeliefId,
+            };
         return {
             resultCode: "Success",
             resultReason,
@@ -181,8 +183,10 @@ function componentsOf(assertions) {
 }
 // DPLL satisfiability over one component: is there a complete situation
 // consistent with `facts`? Propagation closures are memoised (propagate is
-// pure), collapsing repeated sub-searches.
-function satisfiable(facts, assertions, budget, memo) {
+// pure), collapsing repeated sub-searches. `conflicts` collects the ids of
+// beliefs that fired or excluded along explored branches; when the search
+// ends in "unsat" this is the set of beliefs the refutation rests on.
+function satisfiable(facts, assertions, budget, memo, conflicts) {
     budget.used++;
     if (budget.used > budget.max)
         return { status: "unknown" };
@@ -191,6 +195,15 @@ function satisfiable(facts, assertions, budget, memo) {
     const r = cached !== null && cached !== void 0 ? cached : propagate(facts, assertions);
     if (!cached)
         memo.set(k, r);
+    if (conflicts) {
+        for (const step of r.reasoningSteps) {
+            if (step.sourceBeliefId !== undefined)
+                conflicts.add(step.sourceBeliefId);
+        }
+        if (r.contradictionSourceBeliefId !== undefined) {
+            conflicts.add(r.contradictionSourceBeliefId);
+        }
+    }
     if (r.contradiction)
         return { status: "unsat" };
     const open = [...new Set(r.secondaryResidues)].filter((s) => isUndetermined(s, r.discoveries));
@@ -205,10 +218,10 @@ function satisfiable(facts, assertions, budget, memo) {
         freq.set(s, (freq.get(s) || 0) + 1);
     open.sort((a, b) => freq.get(b) - freq.get(a));
     const sentence = open[0];
-    const asTrue = satisfiable([...r.discoveries, { sentence, valence: true }], assertions, budget, memo);
+    const asTrue = satisfiable([...r.discoveries, { sentence, valence: true }], assertions, budget, memo, conflicts);
     if (asTrue.status !== "unsat")
         return asTrue;
-    return satisfiable([...r.discoveries, { sentence, valence: false }], assertions, budget, memo);
+    return satisfiable([...r.discoveries, { sentence, valence: false }], assertions, budget, memo, conflicts);
 }
 function caseSplitAnalysis(explore, assertions, budget) {
     const base = propagate(explore, assertions);
@@ -221,7 +234,8 @@ function caseSplitAnalysis(explore, assertions, budget) {
         const sentences = new Set(component.flatMap((a) => a.properties.map((p) => p.sentence)));
         const memo = new Map();
         let facts = discoveries.filter((p) => sentences.has(p.sentence));
-        const first = satisfiable(facts, component, budget, memo);
+        const firstConflicts = new Set();
+        const first = satisfiable(facts, component, budget, memo, firstConflicts);
         if (first.status === "unknown") {
             incomplete = true;
             continue;
@@ -231,6 +245,7 @@ function caseSplitAnalysis(explore, assertions, budget) {
             return {
                 contradiction: true,
                 contradictionKind: "caseSplit",
+                contradictionViaBeliefs: [...firstConflicts].sort(),
                 discoveries,
                 reasoningSteps,
                 secondaryResidues: base.secondaryResidues,
@@ -253,7 +268,8 @@ function caseSplitAnalysis(explore, assertions, budget) {
             const L = candidates.shift();
             if (!isUndetermined(L.sentence, facts))
                 continue;
-            const refute = satisfiable([...facts, { sentence: L.sentence, valence: !L.valence }], component, budget, memo);
+            const refuteConflicts = new Set();
+            const refute = satisfiable([...facts, { sentence: L.sentence, valence: !L.valence }], component, budget, memo, refuteConflicts);
             if (refute.status === "unknown") {
                 incomplete = true;
                 break;
@@ -264,6 +280,7 @@ function caseSplitAnalysis(explore, assertions, budget) {
                     inferenceStepType: "CaseSplit",
                     deducedProperty: [L],
                     caseSplitOn: L.sentence,
+                    viaBeliefs: [...refuteConflicts].sort(),
                 });
                 const absorbed = propagate([...facts, L], component);
                 reasoningSteps.push(...absorbed.reasoningSteps);

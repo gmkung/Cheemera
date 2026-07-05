@@ -325,6 +325,30 @@ const throwsValidation = (fn) => {
   check("23: completes fast (<250ms)", ms < 250, ms);
 }
 
+// 25. viaBeliefs attribution: case-split conclusions name the beliefs the
+// refutation rests on; case-split contradictions likewise.
+{
+  const beliefs = [
+    ifThen("r1", [P("it rains")], [P("cancelled")]),
+    ifThen("r2", [P("it rains", false)], [P("cancelled")]),
+  ];
+  const a = generateAssertions(normaliseBeliefSet(bs(beliefs)));
+  const r = exploreAssertions([], a, 1);
+  const step = r.results.reasoningSteps.find((s) => s.inferenceStepType === "CaseSplit");
+  check("25: CaseSplit step has viaBeliefs", !!step && Array.isArray(step.viaBeliefs), step);
+  check("25: viaBeliefs names both rules", !!step && step.viaBeliefs.includes("r1") && step.viaBeliefs.includes("r2"), step && step.viaBeliefs);
+
+  const impossible = [
+    ifThen("q1", [P("A")], [P("B")]), ifThen("q2", [P("A")], [P("B", false)]),
+    ifThen("q3", [P("A", false)], [P("B")]), ifThen("q4", [P("A", false)], [P("B", false)]),
+  ];
+  const a2 = generateAssertions(normaliseBeliefSet(bs(impossible)));
+  const r2 = exploreAssertions([], a2, 1);
+  const cstep = r2.results.reasoningSteps.find((s) => s.inferenceStepType === "CaseSplitContradiction");
+  check("25: contradiction step has viaBeliefs", !!cstep && Array.isArray(cstep.viaBeliefs) && cstep.viaBeliefs.length >= 2, cstep);
+  check("25: viaBeliefs all from known rules", !!cstep && cstep.viaBeliefs.every((id) => ["q1", "q2", "q3", "q4"].includes(id)), cstep && cstep.viaBeliefs);
+}
+
 // 24. Unicode/whitespace canonicalisation: visually identical sentences must
 // match after validation, even with different byte encodings (NFC vs NFD).
 {
