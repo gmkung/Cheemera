@@ -57,8 +57,8 @@ function propagate(explore, assertions) {
 }
 exports.propagate = propagate;
 // Shapes the internal result into the public ExploreResult. Kept in one place
-// so the maxCaseSplitDepth === 0 path stays byte-for-byte identical to the
-// original behaviour.
+// so the propagation-only path (caseSplit = false) stays byte-for-byte
+// identical to the original behaviour.
 function formatResult(result) {
     var _a;
     const resultReason = result.incomplete
@@ -98,7 +98,7 @@ function formatResult(result) {
 // budget of search nodes rather than a nesting depth. When exhausted the
 // engine stops searching and returns what has been soundly established.
 exports.DEFAULT_CASE_SPLIT_BUDGET = 50000;
-function exploreAssertions(explore, assertionSet, maxCaseSplitDepth = 0, budget = { used: 0, max: exports.DEFAULT_CASE_SPLIT_BUDGET }) {
+function exploreAssertions(explore, assertionSet, caseSplit = false, budget = { used: 0, max: exports.DEFAULT_CASE_SPLIT_BUDGET }) {
     // Premises asserting both valences of the same sentence describe an empty
     // set of situations: impossible before any belief is consulted. Reported as
     // an ordinary contradiction, not an error.
@@ -113,7 +113,7 @@ function exploreAssertions(explore, assertionSet, maxCaseSplitDepth = 0, budget 
             });
         }
     }
-    const result = maxCaseSplitDepth > 0
+    const result = caseSplit
         ? caseSplitAnalysis(explore, assertionSet.assertions, budget)
         : propagate(explore, assertionSet.assertions);
     return formatResult(result);
@@ -126,8 +126,8 @@ exports.exploreAssertions = exploreAssertions;
 // undetermined. Case-split analysis additionally finds every literal that
 // holds in ALL consistent situations ("if A then Z" and "if not-A then Z"
 // entail Z even though A is unknown), and detects belief sets with no
-// consistent situation at all. Any maxCaseSplitDepth >= 1 enables it; results
-// are complete (all entailed literals found) unless the budget runs out.
+// consistent situation at all. Enabled by the caseSplit flag; results are
+// complete (all entailed literals found) unless the budget runs out.
 //
 // Method, per independent component of the belief set:
 //   1. Search for one consistent world (DPLL: propagate + branch).

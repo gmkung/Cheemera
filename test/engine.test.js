@@ -148,10 +148,10 @@ const has = (props, s, v) => props.some((p) => p.sentence === s && p.valence ===
     ifThen("r2", [P("A", false)], [P("Z")]),
   ];
   const a = generateAssertions(normaliseBeliefSet(bs(beliefs)));
-  const noSplit = exploreAssertions([], a, 0);
-  const withSplit = exploreAssertions([], a, 1);
-  check("11: depth 0 does NOT deduce Z", !has(deduced(noSplit), "Z", true));
-  check("11: depth 1 deduces Z", has(deduced(withSplit), "Z", true), deduced(withSplit));
+  const noSplit = exploreAssertions([], a, false);
+  const withSplit = exploreAssertions([], a, true);
+  check("11: no case-split does NOT deduce Z", !has(deduced(noSplit), "Z", true));
+  check("11: case-split deduces Z", has(deduced(withSplit), "Z", true), deduced(withSplit));
   check("11: Z step marked CaseSplit", withSplit.results.reasoningSteps.some((s) => s.inferenceStepType === "CaseSplit" && (s.deducedProperty || []).some((p) => p.sentence === "Z")));
   check("11: still possible", withSplit.results.possible === true);
 }
@@ -163,17 +163,17 @@ const has = (props, s, v) => props.some((p) => p.sentence === s && p.valence ===
     ifThen("r2", [P("A")], [P("C", false)]),
   ];
   const a = generateAssertions(normaliseBeliefSet(bs(beliefs)));
-  const r = exploreAssertions([], a, 1);
+  const r = exploreAssertions([], a, true);
   check("12: deduces not-A", has(deduced(r), "A", false), deduced(r));
 }
 
-// 13. maxDepth 0 path is identical to the default (no-arg) call
+// 13. propagation-only path is identical to the default (no-arg) call
 {
   const beliefs = [ifThen("r1", [P("A")], [P("B")]), ifThen("r2", [P("A", false)], [P("Z")])];
   const a = generateAssertions(normaliseBeliefSet(bs(beliefs)));
   const def = exploreAssertions([P("A")], a);
-  const zero = exploreAssertions([P("A")], a, 0);
-  check("13: depth 0 == default", JSON.stringify(def) === JSON.stringify(zero));
+  const off = exploreAssertions([P("A")], a, false);
+  check("13: caseSplit=false == default", JSON.stringify(def) === JSON.stringify(off));
 }
 
 // ---------------------------------------------------------------------------
@@ -183,7 +183,7 @@ const {
   ValidationError,
   validateExplore,
   validateBeliefSet,
-  validateMaxCaseSplitDepth,
+  validateCaseSplit,
 } = require("../dist/utils/validation.js");
 const throwsValidation = (fn) => {
   try { fn(); return false; } catch (e) { return e instanceof ValidationError; }
@@ -192,10 +192,10 @@ const throwsValidation = (fn) => {
 // 14. Contradictory explore (A and NOT A) => impossible, no exception, labelled step
 {
   const a = generateAssertions(normaliseBeliefSet(bs([ifThen("r1", [P("X")], [P("Y")])])));
-  const r0 = exploreAssertions([P("A"), P("A", false)], a, 0);
-  const r2 = exploreAssertions([P("A"), P("A", false)], a, 2);
-  check("14: impossible at depth 0", r0.results.possible === false);
-  check("14: impossible at depth 2", r2.results.possible === false);
+  const r0 = exploreAssertions([P("A"), P("A", false)], a, false);
+  const r2 = exploreAssertions([P("A"), P("A", false)], a, true);
+  check("14: impossible without case-split", r0.results.possible === false);
+  check("14: impossible with case-split", r2.results.possible === false);
   check("14: PremiseContradiction step", r0.results.reasoningSteps.some((s) => s.inferenceStepType === "PremiseContradiction"));
 }
 
@@ -234,7 +234,7 @@ const throwsValidation = (fn) => {
   check("18: antecedents [] rejected", throwsValidation(() => validateBeliefSet(mk([]))));
   check("18: antecedents [[]] accepted", (() => { validateBeliefSet(mk([[]])); return true; })());
   const a = generateAssertions(normaliseBeliefSet(mk([[]])));
-  const r = exploreAssertions([], a, 0);
+  const r = exploreAssertions([], a, false);
   check("18: [[]] deduces C unconditionally", has(deduced(r), "C", true));
   check("18: unknown modal rejected by validation", throwsValidation(() =>
     validateBeliefSet(bs([ifThen("r1", [P("A")], [P("B")], "Sometimes")]))));
@@ -243,13 +243,13 @@ const throwsValidation = (fn) => {
       scenario: { type: "IF_THEN", antecedents: [[P("A")]], consequences: [{ modal: "Never", properties: [] }] } }]))));
 }
 
-// 19. validateMaxCaseSplitDepth
+// 19. validateCaseSplit
 {
-  check("19: undefined -> 0", validateMaxCaseSplitDepth(undefined) === 0);
-  check("19: 3 -> 3", validateMaxCaseSplitDepth(3) === 3);
-  check("19: rejects string", throwsValidation(() => validateMaxCaseSplitDepth("2")));
-  check("19: rejects negative", throwsValidation(() => validateMaxCaseSplitDepth(-1)));
-  check("19: rejects fraction", throwsValidation(() => validateMaxCaseSplitDepth(1.5)));
+  check("19: undefined -> false", validateCaseSplit(undefined) === false);
+  check("19: true -> true", validateCaseSplit(true) === true);
+  check("19: false -> false", validateCaseSplit(false) === false);
+  check("19: rejects number", throwsValidation(() => validateCaseSplit(1)));
+  check("19: rejects string", throwsValidation(() => validateCaseSplit("true")));
 }
 
 // 20. Case-split budget: exhaustion degrades gracefully (sound, fast), never wrong
@@ -261,7 +261,7 @@ const throwsValidation = (fn) => {
   }
   const a = generateAssertions(normaliseBeliefSet(bs(beliefs)));
   const t = process.hrtime.bigint();
-  const r = exploreAssertions([], a, 3, { used: 0, max: 50 }); // tiny budget
+  const r = exploreAssertions([], a, true, { used: 0, max: 50 }); // tiny budget
   const ms = Number(process.hrtime.bigint() - t) / 1e6;
   check("20: tiny budget returns quickly", ms < 500, ms);
   check("20: result still sound (possible)", r.results.possible === true);
@@ -283,13 +283,13 @@ const throwsValidation = (fn) => {
   };
   for (const factors of [["a", "b"], ["a", "b", "c"], ["a", "b", "c", "d"]]) {
     const a = generateAssertions(normaliseBeliefSet(bs(combos(factors, "Z"))));
-    const r = exploreAssertions([], a, 1);
-    check(`21: degree-${factors.length} entailment found at depth 1`, has(deduced(r), "Z", true));
+    const r = exploreAssertions([], a, true);
+    check(`21: degree-${factors.length} entailment found with case-split`, has(deduced(r), "Z", true));
     check(`21: degree-${factors.length} step is CaseSplit`, r.results.reasoningSteps.some((s) => s.inferenceStepType === "CaseSplit" && (s.deducedProperty || []).some((p) => p.sentence === "Z")));
   }
   // Negative control: one uncovered combination -> Z must never be deduced.
   const a = generateAssertions(normaliseBeliefSet(bs(combos(["a", "b", "c"], "Z", 5))));
-  const r = exploreAssertions([], a, 1);
+  const r = exploreAssertions([], a, true);
   check("21: negative control never deduces Z", !has(deduced(r), "Z", true), deduced(r));
 }
 
@@ -303,8 +303,8 @@ const throwsValidation = (fn) => {
     ifThen("r4", [P("A", false)], [P("B", false)]),
   ];
   const a = generateAssertions(normaliseBeliefSet(bs(beliefs)));
-  const r0 = exploreAssertions([], a, 0);
-  const r1 = exploreAssertions([], a, 1);
+  const r0 = exploreAssertions([], a, false);
+  const r1 = exploreAssertions([], a, true);
   check("22: propagation alone misses it", r0.results.possible === true);
   check("22: case-split detects impossibility", r1.results.possible === false);
   check("22: CaseSplitContradiction step present", r1.results.reasoningSteps.some((s) => s.inferenceStepType === "CaseSplitContradiction"));
@@ -319,7 +319,7 @@ const throwsValidation = (fn) => {
   for (let i = 0; i < 40; i++) beliefs.push(ifThen("n" + i, [P("p" + i), P("q" + i)], [P("r" + i)]));
   const a = generateAssertions(normaliseBeliefSet(bs(beliefs)));
   const t = process.hrtime.bigint();
-  const r = exploreAssertions([], a, 1);
+  const r = exploreAssertions([], a, true);
   const ms = Number(process.hrtime.bigint() - t) / 1e6;
   check("23: degree-4 deduction found amid 40 noise rules", has(deduced(r), "Z", true));
   check("23: completes fast (<250ms)", ms < 250, ms);
@@ -333,7 +333,7 @@ const throwsValidation = (fn) => {
     ifThen("r2", [P("it rains", false)], [P("cancelled")]),
   ];
   const a = generateAssertions(normaliseBeliefSet(bs(beliefs)));
-  const r = exploreAssertions([], a, 1);
+  const r = exploreAssertions([], a, true);
   const step = r.results.reasoningSteps.find((s) => s.inferenceStepType === "CaseSplit");
   check("25: CaseSplit step has viaBeliefs", !!step && Array.isArray(step.viaBeliefs), step);
   check("25: viaBeliefs names both rules", !!step && step.viaBeliefs.includes("r1") && step.viaBeliefs.includes("r2"), step && step.viaBeliefs);
@@ -343,7 +343,7 @@ const throwsValidation = (fn) => {
     ifThen("q3", [P("A", false)], [P("B")]), ifThen("q4", [P("A", false)], [P("B", false)]),
   ];
   const a2 = generateAssertions(normaliseBeliefSet(bs(impossible)));
-  const r2 = exploreAssertions([], a2, 1);
+  const r2 = exploreAssertions([], a2, true);
   const cstep = r2.results.reasoningSteps.find((s) => s.inferenceStepType === "CaseSplitContradiction");
   check("25: contradiction step has viaBeliefs", !!cstep && Array.isArray(cstep.viaBeliefs) && cstep.viaBeliefs.length >= 2, cstep);
   check("25: viaBeliefs all from known rules", !!cstep && cstep.viaBeliefs.every((id) => ["q1", "q2", "q3", "q4"].includes(id)), cstep && cstep.viaBeliefs);
@@ -357,7 +357,7 @@ const throwsValidation = (fn) => {
   const beliefSet = validateBeliefSet(bs([ifThen("r1", [{ sentence: nfc, valence: true }], [P("B")])]));
   const explore = validateExplore([{ sentence: nfd, valence: true }]);
   const a = generateAssertions(normaliseBeliefSet(beliefSet));
-  const r = exploreAssertions(explore, a, 0);
+  const r = exploreAssertions(explore, a, false);
   check("24: NFC/NFD + whitespace still matches", has(deduced(r), "B", true), deduced(r));
 }
 

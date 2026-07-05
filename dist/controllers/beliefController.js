@@ -30,17 +30,16 @@ const exploreBeliefSet = (req, res) => {
     try {
         const explore = (0, validation_1.validateExplore)(req.body.explore);
         const beliefSet = (0, validation_1.validateBeliefSet)(req.body.beliefSet);
-        // Optional reasoning-by-cases depth. 0 (default) = plain unit propagation,
-        // preserving the original behaviour. Higher values enable case-split
-        // deductions; runtime is bounded by an internal compute budget rather than
-        // by depth.
-        const maxCaseSplitDepth = (0, validation_1.validateMaxCaseSplitDepth)(req.body.maxCaseSplitDepth);
+        // Optional reasoning-by-cases toggle. false (default) = plain unit
+        // propagation, preserving the original behaviour. true enables case-split
+        // analysis; runtime is bounded by an internal compute budget.
+        const caseSplit = (0, validation_1.validateCaseSplit)(req.body.caseSplit);
         //Normalise to 'IF_THEN' scenarios
         const normalisedBeliefSet = (0, deCheemInternalUtils_1.normaliseBeliefSet)(beliefSet);
         //Create assertions
         const assertionSet = (0, deCheemInternalUtils_1.generateAssertions)(normalisedBeliefSet);
         //Explore assertions using 'explore'
-        const exploreResults = (0, deCheemExploreUtils_1.exploreAssertions)(explore, assertionSet, maxCaseSplitDepth);
+        const exploreResults = (0, deCheemExploreUtils_1.exploreAssertions)(explore, assertionSet, caseSplit);
         res.json(exploreResults);
     }
     catch (error) {

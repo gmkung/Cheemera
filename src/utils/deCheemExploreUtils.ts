@@ -95,8 +95,8 @@ export function propagate(
 }
 
 // Shapes the internal result into the public ExploreResult. Kept in one place
-// so the maxCaseSplitDepth === 0 path stays byte-for-byte identical to the
-// original behaviour.
+// so the propagation-only path (caseSplit = false) stays byte-for-byte
+// identical to the original behaviour.
 function formatResult(result: PropagateResult): ExploreResult {
   const resultReason = result.incomplete
     ? "Compute budget exhausted before completing case-split analysis; deductions are sound but may be incomplete"
@@ -152,7 +152,7 @@ export interface CaseSplitBudget {
 export function exploreAssertions(
   explore: Property[],
   assertionSet: AssertionSet,
-  maxCaseSplitDepth: number = 0,
+  caseSplit: boolean = false,
   budget: CaseSplitBudget = { used: 0, max: DEFAULT_CASE_SPLIT_BUDGET }
 ): ExploreResult {
   // Premises asserting both valences of the same sentence describe an empty
@@ -174,10 +174,9 @@ export function exploreAssertions(
     }
   }
 
-  const result =
-    maxCaseSplitDepth > 0
-      ? caseSplitAnalysis(explore, assertionSet.assertions, budget)
-      : propagate(explore, assertionSet.assertions);
+  const result = caseSplit
+    ? caseSplitAnalysis(explore, assertionSet.assertions, budget)
+    : propagate(explore, assertionSet.assertions);
 
   return formatResult(result);
 }
@@ -189,8 +188,8 @@ export function exploreAssertions(
 // undetermined. Case-split analysis additionally finds every literal that
 // holds in ALL consistent situations ("if A then Z" and "if not-A then Z"
 // entail Z even though A is unknown), and detects belief sets with no
-// consistent situation at all. Any maxCaseSplitDepth >= 1 enables it; results
-// are complete (all entailed literals found) unless the budget runs out.
+// consistent situation at all. Enabled by the caseSplit flag; results are
+// complete (all entailed literals found) unless the budget runs out.
 //
 // Method, per independent component of the belief set:
 //   1. Search for one consistent world (DPLL: propagate + branch).

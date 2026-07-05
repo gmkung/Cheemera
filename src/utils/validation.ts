@@ -129,11 +129,11 @@ export function validateBeliefSet(beliefSet: any): BeliefSet {
   };
 }
 
-export function validateMaxCaseSplitDepth(value: any): number {
-  if (value === undefined || value === null) return 0;
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+export function validateCaseSplit(value: any): boolean {
+  if (value === undefined || value === null) return false;
+  if (typeof value !== "boolean") {
     throw new ValidationError(
-      `"maxCaseSplitDepth" must be a non-negative integer (got ${JSON.stringify(value)})`
+      `"caseSplit" must be a boolean (got ${JSON.stringify(value)})`
     );
   }
   return value;

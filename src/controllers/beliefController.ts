@@ -15,7 +15,7 @@ import {
   ValidationError,
   validateBeliefSet,
   validateExplore,
-  validateMaxCaseSplitDepth,
+  validateCaseSplit,
 } from "../utils/validation";
 
 function sendError(res: Response, error: unknown) {
@@ -43,13 +43,10 @@ export const exploreBeliefSet = (req: Request, res: Response) => {
   try {
     const explore: Property[] = validateExplore(req.body.explore);
     const beliefSet: BeliefSet = validateBeliefSet(req.body.beliefSet);
-    // Optional reasoning-by-cases depth. 0 (default) = plain unit propagation,
-    // preserving the original behaviour. Higher values enable case-split
-    // deductions; runtime is bounded by an internal compute budget rather than
-    // by depth.
-    const maxCaseSplitDepth: number = validateMaxCaseSplitDepth(
-      req.body.maxCaseSplitDepth
-    );
+    // Optional reasoning-by-cases toggle. false (default) = plain unit
+    // propagation, preserving the original behaviour. true enables case-split
+    // analysis; runtime is bounded by an internal compute budget.
+    const caseSplit: boolean = validateCaseSplit(req.body.caseSplit);
     //Normalise to 'IF_THEN' scenarios
     const normalisedBeliefSet = normaliseBeliefSet(beliefSet);
     //Create assertions
@@ -58,7 +55,7 @@ export const exploreBeliefSet = (req: Request, res: Response) => {
     const exploreResults: ExploreResult = exploreAssertions(
       explore,
       assertionSet,
-      maxCaseSplitDepth
+      caseSplit
     );
     res.json(exploreResults);
   } catch (error) {

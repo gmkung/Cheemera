@@ -41,13 +41,12 @@ paths:
                   $ref: '#/components/schemas/Explore'
                 beliefSet:
                   $ref: '#/components/schemas/BeliefSet'
-                maxCaseSplitDepth:
-                  type: integer
-                  minimum: 0
-                  default: 0
+                caseSplit:
+                  type: boolean
+                  default: false
                   description: >
-                    Enables reasoning-by-cases (case-split) analysis. 0 (default)
-                    uses plain unit propagation. Any value >= 1 additionally
+                    Enables reasoning-by-cases (case-split) analysis. false
+                    (default) uses plain unit propagation. true additionally
                     deduces every property that holds across all consistent
                     situations regardless of undetermined variables (e.g. "if A
                     then Z" and "if not-A then Z" entails Z), and detects belief

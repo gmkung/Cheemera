@@ -125,10 +125,10 @@ for (let i = 0; i < N; i++) {
   // Backbone-based case-split is complete: the verdict and the deduced set
   // must EQUAL the oracle's, not merely be sound.
   const consistent = oracle(assertions.assertions, explore);
-  const cs = exploreAssertions(clone(explore), { assertions: clone(assertions.assertions) }, 1);
+  const cs = exploreAssertions(clone(explore), { assertions: clone(assertions.assertions) }, true);
 
   // determinism also holds with case-split on
-  const cs2 = exploreAssertions(clone(explore), { assertions: clone(assertions.assertions) }, 1);
+  const cs2 = exploreAssertions(clone(explore), { assertions: clone(assertions.assertions) }, true);
   if (JSON.stringify(cs) !== JSON.stringify(cs2)) report(i, "case-split-non-deterministic", "");
 
   if (cs.results.possible !== consistent.length > 0) {
