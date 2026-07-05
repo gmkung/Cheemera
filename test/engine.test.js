@@ -325,5 +325,17 @@ const throwsValidation = (fn) => {
   check("23: completes fast (<250ms)", ms < 250, ms);
 }
 
+// 24. Unicode/whitespace canonicalisation: visually identical sentences must
+// match after validation, even with different byte encodings (NFC vs NFD).
+{
+  const nfc = "café is open";        // é as one codepoint
+  const nfd = "café is open  ";     // e + combining accent, trailing spaces
+  const beliefSet = validateBeliefSet(bs([ifThen("r1", [{ sentence: nfc, valence: true }], [P("B")])]));
+  const explore = validateExplore([{ sentence: nfd, valence: true }]);
+  const a = generateAssertions(normaliseBeliefSet(beliefSet));
+  const r = exploreAssertions(explore, a, 0);
+  check("24: NFC/NFD + whitespace still matches", has(deduced(r), "B", true), deduced(r));
+}
+
 console.log(`engine.test.js: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -22,6 +22,14 @@ function assertProperty(p: any, path: string): void {
   }
 }
 
+// Atoms are matched by string equality, so visually identical sentences must
+// be byte-identical: Unicode-normalise and trim, or "café" composed two
+// different ways (NFC vs NFD) would silently fail to match and lose
+// deductions.
+function canonicaliseProperty(p: Property): Property {
+  return { sentence: p.sentence.normalize("NFC").trim(), valence: p.valence };
+}
+
 function assertPropertyArray(arr: any, path: string, allowEmpty: boolean): void {
   if (!Array.isArray(arr)) {
     throw new ValidationError(`${path}: expected an array of properties`);
@@ -39,7 +47,7 @@ export function validateExplore(explore: any): Property[] {
     );
   }
   explore.forEach((p, i) => assertProperty(p, `explore[${i}]`));
-  return explore;
+  return explore.map(canonicaliseProperty);
 }
 
 export function validateBeliefSet(beliefSet: any): BeliefSet {
@@ -101,7 +109,24 @@ export function validateBeliefSet(beliefSet: any): BeliefSet {
     }
   });
 
-  return beliefSet;
+  // Return a canonicalised copy so belief and explore sentences match on
+  // byte-identical strings.
+  return {
+    ...beliefSet,
+    beliefs: beliefSet.beliefs.map((belief: any) => ({
+      ...belief,
+      scenario: {
+        ...belief.scenario,
+        antecedents: belief.scenario.antecedents.map((group: any[]) =>
+          group.map(canonicaliseProperty)
+        ),
+        consequences: (belief.scenario.consequences || []).map((c: any) => ({
+          ...c,
+          properties: (c.properties || []).map(canonicaliseProperty),
+        })),
+      },
+    })),
+  };
 }
 
 export function validateMaxCaseSplitDepth(value: any): number {
