@@ -41,6 +41,18 @@ paths:
                   $ref: '#/components/schemas/Explore'
                 beliefSet:
                   $ref: '#/components/schemas/BeliefSet'
+                caseSplit:
+                  type: boolean
+                  default: false
+                  description: >
+                    Enables reasoning-by-cases (case-split) analysis. false
+                    (default) uses plain unit propagation. true additionally
+                    deduces every property that holds across all consistent
+                    situations regardless of undetermined variables (e.g. "if A
+                    then Z" and "if not-A then Z" entails Z), and detects belief
+                    sets with no consistent situation at all. Analysis is
+                    complete unless the internal compute budget is exhausted,
+                    which is reported in resultReason.
       responses:
         '200':
           description: Successfully explored the BeliefSet
@@ -122,8 +134,6 @@ components:
     Assertion:
       type: object
       properties:
-        exclude:
-          type: boolean
         properties:
           type: array
           items:
@@ -169,8 +179,25 @@ components:
             $ref: '#/components/schemas/Property'
         inferenceStepType:
           type: string
+          description: >
+            "Deductive" (a single rule fired; see sourceBeliefId), "CaseSplit"
+            (holds in every consistent situation; see caseSplitOn and
+            viaBeliefs), "CaseSplitContradiction" (no consistent situation
+            exists at all; see viaBeliefs), or "PremiseContradiction" (the
+            explore asserted both valences of the same sentence).
         sourceBeliefId:
           type: string
+        caseSplitOn:
+          type: string
+          description: For CaseSplit steps, the sentence whose cases were analysed.
+        viaBeliefs:
+          type: array
+          items:
+            type: string
+          description: >
+            For CaseSplit and CaseSplitContradiction steps, the ids of the
+            beliefs the refutation rests on (case-split conclusions come from
+            the interplay of several beliefs rather than one rule).
     Explore:
       type: array
       items:

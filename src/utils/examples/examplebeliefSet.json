@@ -5,7 +5,7 @@
       "originatingRuleSystemName": "Payment Services Act",
       "originatingRuleSystemUuid": "uuid-PSA",
       "scenario": {
-        "type": "LET",
+        "type": "IF_THEN",
         "consequences": [
           {
             "modal": "Always",

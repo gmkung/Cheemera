@@ -35,8 +35,8 @@ export interface BeliefSet {
   blindReferenceExternalIdArray: any[]; // Replace 'any' with a more specific type if possible
 }
 
+// A "nogood": a combination of properties that can never all hold at once.
 export interface Assertion {
-  exclude: boolean;
   properties: Property[];
   sourceBeliefId?: string;
 }
@@ -60,4 +60,11 @@ export interface ReasoningStep {
   deducedProperty?: Property[];
   inferenceStepType: string;
   sourceBeliefId?: string;
+  // For "CaseSplit" steps: the sentence whose two truth-values were both
+  // explored to force this deduction (the deduction holds either way).
+  caseSplitOn?: string;
+  // For "CaseSplit"/"CaseSplitContradiction" steps: the beliefs involved in
+  // refuting the alternative. Case-split conclusions come from the interplay
+  // of several beliefs rather than a single rule.
+  viaBeliefs?: string[];
 }
